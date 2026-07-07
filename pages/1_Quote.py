@@ -1,28 +1,39 @@
 """Quote page: ticker lookup, price chart, key stats, valuation ratios."""
 
+import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from analytics.ratios import compute_ratios
-from config import HISTORY_PERIODS
+from config import DEFAULT_PERIOD, HISTORY_PERIODS
 from data import DataSourceError, cache, yahoo
 from formatting import fmt_money, fmt_pct, fmt_ratio
 
 st.title("Quote")
 
-col_ticker, col_period = st.columns([2, 1])
+period_labels = list(HISTORY_PERIODS)
+col_ticker, col_period, col_chart = st.columns([2, 1, 1])
 ticker = col_ticker.text_input("Ticker", value="AAPL").strip().upper()
-period = col_period.selectbox("Period", HISTORY_PERIODS, index=3)
+period = col_period.selectbox(
+    "Period", period_labels, index=period_labels.index(DEFAULT_PERIOD)
+)
+chart_type = col_chart.radio("Chart", ["Line", "Candles"], horizontal=True)
 
 if not ticker:
     st.stop()
 
+chart_range, chart_interval = HISTORY_PERIODS[period]
 try:
     with st.spinner(f"Fetching {ticker}..."):
         snapshot = cache.get_snapshot(ticker)
-        history = cache.get_history(ticker, period)
+        history = cache.get_history(ticker, chart_range, chart_interval)
 except DataSourceError as exc:
     st.error(str(exc))
     st.stop()
+
+if period == "1h":
+    # Yahoo has no 1-hour range; slice the last hour of 1-minute bars.
+    history = history[history.index >= history.index.max() - pd.Timedelta(hours=1)]
 
 quote = snapshot["quote"]
 if snapshot["source"] == yahoo.SOURCE_FALLBACK:
@@ -37,7 +48,27 @@ metric_cols[0].metric("Price", f"{quote['price']:,.2f} {quote['currency'] or ''}
 metric_cols[1].metric("Market cap", fmt_money(quote["market_cap"]))
 metric_cols[2].metric("Ticker", quote["ticker"])
 
-st.line_chart(history["Close"])
+has_ohlc = {"Open", "High", "Low"}.issubset(history.columns)
+if chart_type == "Candles" and has_ohlc:
+    fig = go.Figure(
+        go.Candlestick(
+            x=history.index,
+            open=history["Open"],
+            high=history["High"],
+            low=history["Low"],
+            close=history["Close"],
+        )
+    )
+    fig.update_layout(
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=420,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    if chart_type == "Candles" and not has_ohlc:
+        st.caption("Candles unavailable for this data source — showing line chart.")
+    st.line_chart(history["Close"])
 
 st.subheader("Valuation ratios")
 fundamentals = snapshot["fundamentals"]

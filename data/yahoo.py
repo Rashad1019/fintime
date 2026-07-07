@@ -106,22 +106,31 @@ def fetch_snapshot(ticker: str) -> dict:
     }
 
 
-def fetch_history(ticker: str, period: str = "1y") -> pd.DataFrame:
-    """Daily close prices. Tries the yfinance library first, then the raw chart API."""
+_OHLC_COLUMNS = ["Open", "High", "Low", "Close"]
+
+
+def fetch_history(ticker: str, period: str = "1y", interval: str = "1d") -> pd.DataFrame:
+    """OHLC prices. Tries the yfinance library first, then the raw chart API.
+
+    Always includes a Close column; Open/High/Low are included when the
+    source provides them (needed for candlestick charts).
+    """
     try:
-        df = yf.Ticker(ticker).history(period=period)
+        df = yf.Ticker(ticker).history(period=period, interval=interval)
         if not df.empty and "Close" in df.columns:
-            return df[["Close"]]
+            return df[[col for col in _OHLC_COLUMNS if col in df.columns]]
         logger.warning(
-            "yfinance returned empty history for %s (%s); using chart-API fallback",
+            "yfinance returned empty history for %s (%s/%s); using chart-API fallback",
             ticker,
             period,
+            interval,
         )
     except Exception:
         logger.warning(
-            "yfinance history failed for %s (%s); using chart-API fallback",
+            "yfinance history failed for %s (%s/%s); using chart-API fallback",
             ticker,
             period,
+            interval,
             exc_info=True,
         )
-    return fallback_source.get_history(ticker, period)
+    return fallback_source.get_history(ticker, period, interval)

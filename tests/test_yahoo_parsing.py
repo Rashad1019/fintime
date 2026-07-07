@@ -94,6 +94,57 @@ def test_fallback_parses_chart_payload(monkeypatch):
     assert list(df["Close"]) == [100.0]  # None rows dropped
 
 
+def test_fallback_parses_ohlc_for_candlesticks(monkeypatch):
+    payload = {
+        "chart": {
+            "result": [
+                {
+                    "timestamp": [1751328000],
+                    "indicators": {
+                        "quote": [
+                            {
+                                "open": [99.0],
+                                "high": [102.0],
+                                "low": [98.5],
+                                "close": [100.0],
+                            }
+                        ]
+                    },
+                }
+            ]
+        }
+    }
+    monkeypatch.setattr(
+        fallback_source.requests, "get", lambda *a, **kw: _FakeChartResponse(payload)
+    )
+    df = fallback_source.get_history("AAPL", "1d", "5m")
+    assert list(df.columns) == ["Open", "High", "Low", "Close"]
+    assert df["High"].iloc[0] == 102.0
+
+
+def test_fallback_invalid_period_and_interval_use_safe_defaults(monkeypatch):
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured.update(params)
+        return _FakeChartResponse(
+            {
+                "chart": {
+                    "result": [
+                        {
+                            "timestamp": [1751328000],
+                            "indicators": {"quote": [{"close": [100.0]}]},
+                        }
+                    ]
+                }
+            }
+        )
+
+    monkeypatch.setattr(fallback_source.requests, "get", fake_get)
+    fallback_source.get_history("AAPL", "bogus", "bogus")
+    assert captured == {"range": "1y", "interval": "1d"}
+
+
 def test_fallback_malformed_payload_raises(monkeypatch):
     monkeypatch.setattr(
         fallback_source.requests,

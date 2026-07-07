@@ -26,9 +26,9 @@ def get_snapshot(ticker: str) -> dict:
 
 
 @st.cache_data(ttl=HISTORY_TTL_SECONDS, show_spinner=False)
-def get_history(ticker: str, period: str = "1y") -> pd.DataFrame:
-    """Cached daily close prices."""
-    return yahoo.fetch_history(ticker, period)
+def get_history(ticker: str, period: str = "1y", interval: str = "1d") -> pd.DataFrame:
+    """Cached OHLC prices."""
+    return yahoo.fetch_history(ticker, period, interval)
 
 
 def _snapshot_or_none(ticker: str) -> dict | None:
