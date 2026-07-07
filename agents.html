@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fincent — Investor Agents</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0e1116;
+    --surface: #161b22;
+    --border: #2a3038;
+    --text: #e6e9ee;
+    --muted: #9aa4b2;
+    --accent: #4fd1a5;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --border: #e1e4e8;
+      --text: #1c2128;
+      --muted: #57606a;
+      --accent: #0f9d68;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  h1 {
+    font-size: clamp(1.8rem, 1.4rem + 1.5vw, 2.6rem);
+    margin: 0 0 0.25rem;
+    letter-spacing: -0.02em;
+  }
+  .subtitle { color: var(--muted); margin: 0 0 2.5rem; font-size: 1.05rem; }
+  h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin: 2.5rem 0 1rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+  }
+  .card h3 {
+    margin: 0 0 0.35rem;
+    font-size: 1.05rem;
+  }
+  .card .aka {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 0.9rem;
+  }
+  .card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  code {
+    background: var(--border);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Investor Agents</h1>
+  <p class="subtitle">20 personas that analyze a ticker's real computed numbers — ratios, DCF, risk — each through a different investor's published framework.</p>
+
+  <h2>Classic value</h2>
+  <div class="card"><h3>Warren Buffett</h3><p>Wonderful businesses at fair prices — moats, high ROE, honest management, margin of safety. Treats a stock as part-ownership of a business.</p></div>
+  <div class="card"><h3>Charlie Munger</h3><p>Mental-model latticework and inversion — asks what would make an investment fail before asking why it works. Avoiding stupidity over seeking brilliance.</p></div>
+  <div class="card"><h3>Benjamin Graham</h3><p>Strict quantitative value — low P/E and P/B, conservative debt, margin of safety. Treats the market as manic "Mr. Market" to exploit, not follow.</p></div>
+  <div class="card"><h3>Seth Klarman</h3><p>Absolute value and risk-first thinking — deep discount to conservative (often liquidation) value, comfortable holding cash when nothing is cheap.</p></div>
+  <div class="card"><h3>Joel Greenblatt</h3><p>Systematic "magic formula" — high earnings yield combined with high return on capital, plus special situations like spinoffs.</p></div>
+  <div class="card"><h3>John Templeton</h3><p>Global contrarian — buys at maximum pessimism, sells at maximum optimism, hunts bargains worldwide.</p></div>
+
+  <h2>Growth &amp; quality</h2>
+  <div class="card"><h3>Peter Lynch</h3><p>Growth-at-a-reasonable-price (PEG ratio) — understandable businesses, plain-language reasoning, wary of "diworsification."</p></div>
+  <div class="card"><h3>Phil Fisher</h3><p>Long-runway growth via "scuttlebutt" research — outstanding products, R&amp;D, management integrity; pays full price for exceptional companies.</p></div>
+  <div class="card"><h3>Howard Marks</h3><p>Second-level thinking and market cycles — is the good news already in the price? Risk means permanent loss, not volatility.</p></div>
+
+  <h2>Contrarian &amp; macro</h2>
+  <div class="card"><h3>Michael Burry</h3><p>Contrarian deep value — exhaustive research into securities the market hates, anchored strictly on cash flow and balance-sheet reality.</p></div>
+  <div class="card"><h3>Ray Dalio</h3><p>Macro and debt cycles — stress-tests positions across growth/inflation regimes, prizes diversification and radical transparency.</p></div>
+
+  <h2>Tech, AI &amp; disruptive growth</h2>
+  <div class="card"><h3>Cathie Wood</h3><p>Disruptive innovation (ARK) — AI, robotics, genomics; values 5+ years out, accepts high volatility for exponential platforms.</p></div>
+  <div class="card"><h3>Masayoshi Son</h3><p>Vision-driven, bet-the-company on AI — 300-year view of technological evolution, enormous concentrated bets on category winners.</p></div>
+  <div class="card"><h3>Marc Andreessen</h3><p>Techno-optimist — software eating every industry, network effects, biggest risk is being under-invested in the future.</p></div>
+  <div class="card"><h3>Chamath Palihapitiya</h3><p>Asymmetric growth bets — huge TAMs, unit economics over current profit, concentrates capital when conviction is high.</p></div>
+
+  <h2>ETF &amp; dividend focused</h2>
+  <div class="card"><h3>Jack Bogle</h3><p>Low-cost indexing — picking stocks is a loser's game after fees; weighs any single stock against just owning the whole market.</p></div>
+  <div class="card"><h3>Geraldine Weiss</h3><p>Dividend-yield theory — judges blue chips by decades of uninterrupted, growing dividends; a stock with no dividend is speculation.</p></div>
+  <div class="card"><h3>Kevin O'Leary</h3><p>Cash-return discipline — "only own things that pay me," dividends and buybacks, strict position-sizing rules, zero patience for cash-burners.</p></div>
+
+  <h2>Modern &amp; community voices</h2>
+  <div class="card"><h3>Ian Dunlap <span class="aka">"The Master Investor"</span></h3><p>"2 tech, 2 index, no stress" — concentrate in elite category winners (e.g. Apple, Microsoft) plus broad index funds (VOO, VTI); hold 5–10 years.</p></div>
+  <div class="card"><h3>Wall Street Trapper <span class="aka">Leon Howard</span></h3><p>Ownership over consumption — own shares in the companies people spend with daily; builds wealth one share at a time, plain-language teaching.</p></div>
+
+  <footer>
+    Every persona receives the same prompt: the ticker's real price, ratios, DCF value, and risk metrics, with an explicit instruction to reason only from the numbers given (missing data shown as N/A) rather than invent figures.
+    Full system prompts: <code>agents/personas.py</code>. Invocation: <code>pages/4_Agents.py</code>.
+  </footer>
+</div>
+</body>
+</html>

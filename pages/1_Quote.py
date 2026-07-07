@@ -3,25 +3,33 @@
 import streamlit as st
 
 from analytics.ratios import compute_ratios
-from data import DataSourceError, yfinance_source
+from config import HISTORY_PERIODS
+from data import DataSourceError, cache, yahoo
 from formatting import fmt_money, fmt_pct, fmt_ratio
 
 st.title("Quote")
 
 col_ticker, col_period = st.columns([2, 1])
 ticker = col_ticker.text_input("Ticker", value="AAPL").strip().upper()
-period = col_period.selectbox("Period", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
+period = col_period.selectbox("Period", HISTORY_PERIODS, index=3)
 
 if not ticker:
     st.stop()
 
 try:
     with st.spinner(f"Fetching {ticker}..."):
-        quote = yfinance_source.get_quote(ticker)
-        history = yfinance_source.get_history(ticker, period)
+        snapshot = cache.get_snapshot(ticker)
+        history = cache.get_history(ticker, period)
 except DataSourceError as exc:
     st.error(str(exc))
     st.stop()
+
+quote = snapshot["quote"]
+if snapshot["source"] == yahoo.SOURCE_FALLBACK:
+    st.warning(
+        "Yahoo Finance is unavailable — showing the last close from the "
+        "fallback chart API. Name, market cap, and fundamentals are missing."
+    )
 
 st.subheader(quote["name"])
 metric_cols = st.columns(3)
@@ -32,9 +40,10 @@ metric_cols[2].metric("Ticker", quote["ticker"])
 st.line_chart(history["Close"])
 
 st.subheader("Valuation ratios")
-try:
-    with st.spinner("Fetching fundamentals..."):
-        fundamentals = yfinance_source.get_fundamentals(ticker)
+fundamentals = snapshot["fundamentals"]
+if fundamentals is None:
+    st.warning(f"Ratios unavailable: no fundamentals for '{ticker}' right now.")
+else:
     ratios = compute_ratios(fundamentals)
     ratio_cols = st.columns(5)
     ratio_cols[0].metric("P/E", fmt_ratio(ratios["pe_ratio"]))
@@ -53,5 +62,3 @@ try:
                 "Total debt": [fmt_money(fundamentals["total_debt"])],
             }
         )
-except DataSourceError as exc:
-    st.warning(f"Ratios unavailable: {exc}")

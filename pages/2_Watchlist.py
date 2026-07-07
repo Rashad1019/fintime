@@ -2,7 +2,7 @@
 
 import streamlit as st
 
-from data import DataSourceError, yfinance_source
+from data import cache, yahoo
 from storage import db
 
 st.title("Watchlist")
@@ -20,22 +20,30 @@ if not symbols:
     st.info("Watchlist is empty — add a ticker above.")
     st.stop()
 
-rows = []
 with st.spinner("Fetching prices..."):
-    for symbol in symbols:
-        try:
-            quote = yfinance_source.get_quote(symbol)
-            rows.append(
-                {
-                    "Ticker": symbol,
-                    "Name": quote["name"],
-                    "Price": f"{quote['price']:,.2f}",
-                }
-            )
-        except DataSourceError:
-            rows.append({"Ticker": symbol, "Name": "(no data)", "Price": "N/A"})
+    snapshots = cache.get_snapshots(tuple(symbols))
+
+rows = []
+any_fallback = False
+for symbol in symbols:
+    snapshot = snapshots.get(symbol)
+    if snapshot is None:
+        rows.append({"Ticker": symbol, "Name": "(no data)", "Price": "N/A"})
+        continue
+    is_fallback = snapshot["source"] == yahoo.SOURCE_FALLBACK
+    any_fallback = any_fallback or is_fallback
+    quote = snapshot["quote"]
+    rows.append(
+        {
+            "Ticker": symbol,
+            "Name": quote["name"] + (" ⚠" if is_fallback else ""),
+            "Price": f"{quote['price']:,.2f}",
+        }
+    )
 
 st.dataframe(rows, use_container_width=True, hide_index=True)
+if any_fallback:
+    st.caption("⚠ = Yahoo Finance unavailable; price is the last close from the fallback source.")
 
 col_select, col_remove = st.columns([3, 1])
 to_remove = col_select.selectbox("Remove ticker", symbols, label_visibility="collapsed")

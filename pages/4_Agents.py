@@ -7,13 +7,14 @@ from agents.personas import PERSONAS, build_prompt
 from analytics.dcf import dcf_value
 from analytics.ratios import compute_ratios
 from analytics.risk import annualized_volatility, historical_var, sharpe_ratio
-from data import DataSourceError, yfinance_source
-
-# Default DCF assumptions used for the intrinsic-value input to the personas.
-DCF_GROWTH = 0.08
-DCF_DISCOUNT = 0.10
-DCF_TERMINAL = 0.025
-DCF_YEARS = 5
+from config import (
+    DCF_DISCOUNT,
+    DCF_GROWTH,
+    DCF_TERMINAL_GROWTH,
+    DCF_YEARS,
+    RISK_HISTORY_PERIOD,
+)
+from data import DataSourceError, cache
 
 st.title("Investor agents")
 st.caption(
@@ -33,10 +34,18 @@ if not st.button("Run analysis", type="primary") or not ticker or not selected:
 
 try:
     with st.spinner(f"Computing metrics for {ticker}..."):
-        fundamentals = yfinance_source.get_fundamentals(ticker)
-        history = yfinance_source.get_history(ticker, "1y")
+        snapshot = cache.get_snapshot(ticker)
+        history = cache.get_history(ticker, RISK_HISTORY_PERIOD)
 except DataSourceError as exc:
     st.error(str(exc))
+    st.stop()
+
+fundamentals = snapshot["fundamentals"]
+if fundamentals is None:
+    st.error(
+        f"No fundamentals available for '{ticker}' right now — the personas "
+        "need real numbers to analyze."
+    )
     st.stop()
 
 metrics = {
@@ -54,7 +63,7 @@ metrics = {
 fcf = fundamentals["free_cash_flow"]
 shares = fundamentals["shares_outstanding"]
 if fcf and shares:
-    total_value = dcf_value(fcf, DCF_GROWTH, DCF_DISCOUNT, DCF_TERMINAL, DCF_YEARS)
+    total_value = dcf_value(fcf, DCF_GROWTH, DCF_DISCOUNT, DCF_TERMINAL_GROWTH, DCF_YEARS)
     metrics["dcf_value_per_share"] = total_value / shares
 
 try:
@@ -70,7 +79,7 @@ with st.expander("Numbers given to the personas", expanded=False):
 if "dcf_value_per_share" in metrics:
     st.caption(
         f"DCF assumes {DCF_GROWTH:.0%} growth, {DCF_DISCOUNT:.0%} discount rate, "
-        f"{DCF_TERMINAL:.1%} terminal growth over {DCF_YEARS} years."
+        f"{DCF_TERMINAL_GROWTH:.1%} terminal growth over {DCF_YEARS} years."
     )
 
 user_prompt = build_prompt(ticker, metrics)

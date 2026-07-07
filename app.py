@@ -14,9 +14,9 @@ Use the sidebar to navigate:
 - **Quote** — look up a ticker: price chart, key stats, valuation ratios
 - **Watchlist** — save tickers and see their current prices at a glance
 - **Analytics** — DCF intrinsic-value calculator and risk metrics
-- **Agents** — run a ticker's numbers past investor personas (Buffett, Munger, Graham, Lynch, Klarman, Marks)
+- **Agents** — run a ticker's numbers past 20 investor personas, from Buffett and Graham to Cathie Wood and Ian Dunlap
 
-Data comes from Yahoo Finance (free, no key) with Stooq as fallback.
+Data comes from Yahoo Finance (free, no key) with a direct chart-API fallback.
 Persona analysis uses OpenRouter — set `OPENROUTER_API_KEY` in `.env`.
 """
 )

@@ -5,6 +5,8 @@ feeds them the numbers computed by analytics/ so their analysis stays
 grounded in real data instead of invented figures.
 """
 
+from formatting import fmt_pct, fmt_ratio
+
 PERSONAS: dict[str, str] = {
     "Warren Buffett": (
         "You are an analyst applying Warren Buffett's investment framework. "
@@ -286,12 +288,10 @@ _PERCENT_METRICS = {
 
 
 def _format_value(key: str, value) -> str:
-    if value is None:
-        return "N/A"
     if key in _PERCENT_METRICS:
-        return f"{value:.2%}"
-    if isinstance(value, float):
-        return f"{value:,.2f}"
+        return fmt_pct(value)
+    if value is None or isinstance(value, float):
+        return fmt_ratio(value)
     return str(value)
 
 

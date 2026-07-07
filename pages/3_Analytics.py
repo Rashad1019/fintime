@@ -4,7 +4,14 @@ import streamlit as st
 
 from analytics.dcf import dcf_value
 from analytics.risk import annualized_volatility, historical_var, sharpe_ratio
-from data import DataSourceError, yfinance_source
+from config import (
+    DCF_DISCOUNT,
+    DCF_GROWTH,
+    DCF_TERMINAL_GROWTH,
+    DCF_YEARS,
+    RISK_HISTORY_PERIOD,
+)
+from data import DataSourceError, cache
 from formatting import fmt_money, fmt_pct
 
 st.title("Analytics")
@@ -15,10 +22,15 @@ if not ticker:
 
 try:
     with st.spinner(f"Fetching {ticker}..."):
-        fundamentals = yfinance_source.get_fundamentals(ticker)
-        history = yfinance_source.get_history(ticker, "1y")
+        snapshot = cache.get_snapshot(ticker)
+        history = cache.get_history(ticker, RISK_HISTORY_PERIOD)
 except DataSourceError as exc:
     st.error(str(exc))
+    st.stop()
+
+fundamentals = snapshot["fundamentals"]
+if fundamentals is None:
+    st.error(f"No fundamentals available for '{ticker}' right now — DCF needs them.")
     st.stop()
 
 st.header("DCF intrinsic value")
@@ -27,10 +39,12 @@ st.caption("Pre-filled with the company's trailing free cash flow — adjust the
 default_fcf = fundamentals["free_cash_flow"] or 0.0
 input_cols = st.columns(5)
 fcf = input_cols[0].number_input("Free cash flow", value=float(default_fcf), format="%.0f")
-growth = input_cols[1].number_input("Growth rate %", value=8.0, step=0.5) / 100
-discount = input_cols[2].number_input("Discount rate %", value=10.0, step=0.5) / 100
-terminal = input_cols[3].number_input("Terminal growth %", value=2.5, step=0.5) / 100
-years = int(input_cols[4].number_input("Years", value=5, min_value=1, max_value=20))
+growth = input_cols[1].number_input("Growth rate %", value=DCF_GROWTH * 100, step=0.5) / 100
+discount = input_cols[2].number_input("Discount rate %", value=DCF_DISCOUNT * 100, step=0.5) / 100
+terminal = (
+    input_cols[3].number_input("Terminal growth %", value=DCF_TERMINAL_GROWTH * 100, step=0.5) / 100
+)
+years = int(input_cols[4].number_input("Years", value=DCF_YEARS, min_value=1, max_value=20))
 
 try:
     total_value = dcf_value(fcf, growth, discount, terminal, years)
@@ -52,7 +66,7 @@ if shares:
 else:
     result_cols[1].metric("Per share", "N/A (shares unknown)")
 
-st.header("Risk metrics (1y daily prices)")
+st.header(f"Risk metrics ({RISK_HISTORY_PERIOD} daily prices)")
 try:
     prices = history["Close"]
     risk_cols = st.columns(3)

@@ -1,4 +1,4 @@
-"""Display formatting shared by the Streamlit pages."""
+"""Display formatting shared by the Streamlit pages and persona prompts."""
 
 
 def fmt_ratio(value: float | None) -> str:
@@ -6,7 +6,8 @@ def fmt_ratio(value: float | None) -> str:
 
 
 def fmt_pct(value: float | None) -> str:
-    return "N/A" if value is None else f"{value * 100:,.1f}%"
+    """Fraction to percent: 0.0325 -> '3.25%'."""
+    return "N/A" if value is None else f"{value * 100:,.2f}%"
 
 
 def fmt_money(value: float | None) -> str:

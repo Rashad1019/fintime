@@ -1,15 +1,22 @@
 """Minimal OpenRouter chat-completions client.
 
-Reads OPENROUTER_API_KEY (required) and OPENROUTER_MODEL (optional) from the
-environment / a local .env file. Never hardcode the key.
+Environment (from the shell or a local .env file — never hardcode the key):
+  OPENROUTER_API_KEY  required.
+  OPENROUTER_MODEL    optional — use exactly this one model.
+  OPENROUTER_MODELS   optional — comma-separated rotation list, overriding
+                      FREE_MODEL_FALLBACKS. Free-tier models come and go, so
+                      this lets you refresh the list without touching code.
 """
 
+import logging
 import os
 
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 REQUEST_TIMEOUT_SECONDS = 120
@@ -27,6 +34,15 @@ _RETRYABLE_STATUS_CODES = {404, 429}
 
 class OpenRouterError(Exception):
     """Raised when the OpenRouter call cannot be completed."""
+
+
+def _models_to_try() -> list[str]:
+    single = os.getenv("OPENROUTER_MODEL")
+    if single:
+        return [single]
+    env_list = os.getenv("OPENROUTER_MODELS", "")
+    models = [model.strip() for model in env_list.split(",") if model.strip()]
+    return models or FREE_MODEL_FALLBACKS
 
 
 def _call(api_key: str, model: str, system_prompt: str, user_prompt: str):
@@ -47,8 +63,8 @@ def _call(api_key: str, model: str, system_prompt: str, user_prompt: str):
 def ask(system_prompt: str, user_prompt: str) -> str:
     """Send one system+user exchange to OpenRouter and return the reply text.
 
-    If OPENROUTER_MODEL is set, only that model is used. Otherwise each model
-    in FREE_MODEL_FALLBACKS is tried until one is not rate-limited.
+    Models are tried in order (see _models_to_try) until one is not
+    rate-limited or removed.
     """
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -56,11 +72,8 @@ def ask(system_prompt: str, user_prompt: str) -> str:
             "OPENROUTER_API_KEY is not set. Copy .env.example to .env and add your key."
         )
 
-    override = os.getenv("OPENROUTER_MODEL")
-    models = [override] if override else FREE_MODEL_FALLBACKS
-
     last_error = None
-    for model in models:
+    for model in _models_to_try():
         try:
             response = _call(api_key, model, system_prompt, user_prompt)
         except requests.RequestException as exc:
@@ -71,6 +84,7 @@ def ask(system_prompt: str, user_prompt: str) -> str:
                 f"{model} unavailable (HTTP {response.status_code}): "
                 f"{response.text[:200]}"
             )
+            logger.warning("Rotating past model: %s", last_error)
             continue
         if response.status_code != 200:
             raise OpenRouterError(
@@ -84,6 +98,7 @@ def ask(system_prompt: str, user_prompt: str) -> str:
             ) from exc
 
     raise OpenRouterError(
-        "All free models are currently rate-limited — wait a minute and retry. "
+        "All models in the rotation are currently unavailable — wait a minute and "
+        "retry, or set OPENROUTER_MODELS in .env to a fresh list. "
         f"Last error: {last_error}"
     )
