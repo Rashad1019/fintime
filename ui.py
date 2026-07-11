@@ -1,12 +1,14 @@
 """Shared Streamlit UI helpers used across pages.
 
-Visual identity: "Obsidian Signal" — a focused institutional terminal.
+Visual identity: "Black Ledger" — editorial, restrained market intelligence.
 Palette and fonts are defined once in THEME/apply_theme() so every page
 stays visually consistent; call ui.apply_theme() right after
 st.set_page_config() on every page.
 """
 
+from base64 import b64encode
 from html import escape
+from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -18,324 +20,242 @@ from data import yahoo
 # Single source of truth for the palette — reused by CSS injection and by
 # the Plotly chart colors so charts match the chrome around them.
 THEME = {
-    "background": "#070B12",
-    "surface": "#0D1420",
-    "surface_alt": "#121C2A",
-    "border": "#213148",
-    "primary": "#58E1C1",
-    "secondary": "#8BA9FF",
-    "text": "#F5F7FA",
-    "text_muted": "#8E9AAF",
-    "positive": "#40D898",
-    "negative": "#FF6B7A",
-    "font_body": "'Inter', sans-serif",
-    "font_mono": "'JetBrains Mono', monospace",
+    "background": "#050505",
+    "surface": "#0B0B0D",
+    "surface_alt": "#111115",
+    "border": "#2A2A30",
+    "primary": "#8E96FF",
+    "secondary": "#446DFF",
+    "text": "#F7F7F4",
+    "text_muted": "#99999F",
+    "positive": "#4BD49B",
+    "negative": "#F26D7D",
+    "font_body": "'Manrope', sans-serif",
+    "font_mono": "'IBM Plex Mono', monospace",
 }
 
 _GOOGLE_FONTS_URL = (
     "https://fonts.googleapis.com/css2?"
-    "family=Inter:wght@400;500;600;700&"
-    "family=JetBrains+Mono:wght@400;500;600&display=swap"
+    "family=Manrope:wght@400;500;600;700&"
+    "family=IBM+Plex+Mono:wght@400;500&display=swap"
 )
 
 
 def apply_theme() -> None:
-    """Inject fonts and CSS for the Obsidian Signal look.
-
-    Call once per page, right after st.set_page_config(). Idempotent —
-    Streamlit re-renders this markdown block on every rerun harmlessly.
-    """
+    """Inject the restrained Black Ledger visual system."""
     t = THEME
     st.markdown(
         f"""
         <style>
         @import url('{_GOOGLE_FONTS_URL}');
 
-        html, body, [class*="css"] {{
-            font-family: {t["font_body"]};
-        }}
-
-        .stApp,
-        [data-testid="stAppViewContainer"] {{
-            background:
-                radial-gradient(circle at 88% 0%, rgba(88, 225, 193, 0.08), transparent 28rem),
-                radial-gradient(circle at 25% 35%, rgba(139, 169, 255, 0.035), transparent 30rem),
-                {t["background"]};
-        }}
-
+        html, body, [class*="css"] {{ font-family: {t["font_body"]}; }}
+        .stApp, [data-testid="stAppViewContainer"] {{ background: {t["background"]}; }}
         [data-testid="stHeader"] {{
-            background: rgba(7, 11, 18, 0.82);
-            backdrop-filter: blur(16px);
-            border-bottom: 1px solid rgba(33, 49, 72, 0.55);
+            background: rgba(5, 5, 5, 0.86);
+            border-bottom: 1px solid {t["border"]};
+            backdrop-filter: blur(18px);
         }}
-
-        [data-testid="stAppViewContainer"] {{
-            color: {t["text"]};
-        }}
-
-        .block-container {{
-            max-width: 1320px;
-            padding-top: 2.25rem;
-            padding-bottom: 4rem;
-        }}
+        [data-testid="stAppViewContainer"] {{ color: {t["text"]}; }}
+        .block-container {{ max-width: 1380px; padding-top: 1.7rem; padding-bottom: 5rem; }}
 
         h1, h2, h3, h4 {{
-            font-family: {t["font_body"]};
-            font-weight: 600;
-            letter-spacing: -0.025em;
             color: {t["text"]};
+            font-family: {t["font_body"]};
+            font-weight: 500;
+            letter-spacing: -0.045em;
         }}
+        h2 {{ font-size: 1.35rem; margin-top: 2rem; }}
+        p, label, [data-testid="stCaptionContainer"] {{ color: {t["text_muted"]}; }}
 
-        h2 {{
-            font-size: 1.35rem;
-            margin-top: 1.5rem;
+        .fincent-page-header {{ margin-bottom: 2.25rem; }}
+        .fincent-section-header {{
+            padding: 2rem 0 1.6rem;
+            border-top: 1px solid {t["border"]};
+            border-bottom: 1px solid {t["border"]};
         }}
-
-        p, label, [data-testid="stCaptionContainer"] {{
-            color: {t["text_muted"]};
-        }}
-
-        /* Branded page masthead shared across the full app. */
-        .fincent-page-header {{
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            min-height: 104px;
-            margin: 0 0 1.35rem 0;
-            padding: 1.25rem 1.4rem;
-            background: linear-gradient(115deg, rgba(18, 28, 42, 0.96), rgba(13, 20, 32, 0.86));
-            border: 1px solid {t["border"]};
-            border-radius: 18px;
-            box-shadow: 0 20px 55px rgba(0, 0, 0, 0.22);
-            position: relative;
-            overflow: hidden;
-        }}
-
-        .fincent-page-header::after {{
-            content: "";
-            position: absolute;
-            width: 260px;
-            height: 260px;
-            right: -100px;
-            top: -150px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(88, 225, 193, 0.14), transparent 67%);
-            pointer-events: none;
-        }}
-
-        .fincent-brand-mark {{
-            width: 54px;
-            height: 54px;
-            flex: 0 0 54px;
-            display: grid;
-            place-items: center;
-            color: #07110F;
-            background: linear-gradient(145deg, {t["primary"]}, #A8F5E3);
-            border-radius: 15px;
-            font-family: {t["font_mono"]};
-            font-size: 1.3rem;
-            font-weight: 700;
-            box-shadow: 0 10px 32px rgba(88, 225, 193, 0.18);
-        }}
-
-        .fincent-header-copy {{
-            min-width: 0;
-            flex: 1;
-        }}
-
+        .fincent-header-copy {{ max-width: 900px; position: relative; z-index: 1; }}
         .fincent-kicker {{
-            color: {t["primary"]};
+            color: #B9B9C0;
             font-family: {t["font_mono"]};
-            font-size: 0.68rem;
-            font-weight: 600;
-            letter-spacing: 0.16em;
+            font-size: 0.64rem;
+            font-weight: 500;
+            letter-spacing: 0.2em;
             text-transform: uppercase;
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.75rem;
         }}
-
-        .fincent-page-header h1 {{
-            font-size: clamp(1.65rem, 3vw, 2.35rem);
-            line-height: 1.05;
+        .fincent-section-header h1 {{
+            font-size: clamp(2.8rem, 5.5vw, 5.6rem);
+            line-height: 0.98;
             margin: 0;
         }}
-
-        .fincent-page-header p {{
-            font-size: 0.88rem;
-            line-height: 1.45;
-            margin: 0.4rem 0 0;
-            max-width: 760px;
+        .fincent-section-header p {{
+            max-width: 640px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin: 0.9rem 0 0;
         }}
 
-        .fincent-status {{
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: #B7C2D2;
-            background: rgba(7, 11, 18, 0.55);
-            border: 1px solid {t["border"]};
-            border-radius: 999px;
-            padding: 0.48rem 0.72rem;
-            font-family: {t["font_mono"]};
-            font-size: 0.65rem;
-            letter-spacing: 0.08em;
-            white-space: nowrap;
-            z-index: 1;
-        }}
-
-        .fincent-status-dot {{
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: {t["positive"]};
-            box-shadow: 0 0 0 4px rgba(64, 216, 152, 0.1), 0 0 12px rgba(64, 216, 152, 0.55);
-        }}
-
-        /* Numeric displays read as terminal data, not prose. */
-        [data-testid="stMetricValue"] {{
-            font-family: {t["font_mono"]};
-            font-weight: 600;
-            color: {t["text"]};
-        }}
-        [data-testid="stMetricLabel"] {{
-            font-family: {t["font_body"]};
-            color: {t["text_muted"]};
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }}
-        [data-testid="stMetricDelta"] {{
-            font-family: {t["font_mono"]};
-        }}
-        [data-testid="stMetric"] {{
-            background: linear-gradient(155deg, rgba(18, 28, 42, 0.94), rgba(13, 20, 32, 0.96));
-            border: 1px solid {t["border"]};
-            border-radius: 14px;
-            padding: 1rem 1.05rem;
-            min-height: 100px;
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+        .fincent-home-hero {{
+            min-height: 570px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 2.2rem 2.6rem 2.7rem;
+            border: 1px solid #202026;
+            background-color: #000;
+            background-size: cover;
+            background-position: center;
             position: relative;
             overflow: hidden;
         }}
-
-        [data-testid="stMetric"]::before {{
+        .fincent-wordmark {{
+            position: absolute;
+            left: 2.6rem;
+            top: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            color: #fff;
+            font-size: 1.05rem;
+            font-weight: 650;
+            letter-spacing: -0.04em;
+        }}
+        .fincent-wordmark-symbol {{
+            width: 15px;
+            height: 15px;
+            border: 1.5px solid #fff;
+            border-radius: 50%;
+            display: inline-block;
+            position: relative;
+        }}
+        .fincent-wordmark-symbol::after {{
             content: "";
             position: absolute;
-            inset: 0 auto 0 0;
-            width: 2px;
-            background: linear-gradient({t["primary"]}, rgba(88, 225, 193, 0.05));
+            top: -2px;
+            bottom: -2px;
+            left: 50%;
+            border-left: 1.5px solid #fff;
+            transform: rotate(24deg);
+        }}
+        .fincent-home-hero h1 {{
+            color: #fff;
+            font-size: clamp(3.4rem, 7.6vw, 7.4rem);
+            line-height: 0.88;
+            letter-spacing: -0.075em;
+            margin: 0;
+            max-width: 950px;
+        }}
+        .fincent-home-hero p {{
+            color: #B8B8BE;
+            max-width: 560px;
+            font-size: 0.92rem;
+            line-height: 1.65;
+            margin: 1.45rem 0 0;
         }}
 
-        code, .stCode, [data-testid="stCode"] {{
+        [data-testid="stMetric"] {{
+            min-height: 96px;
+            padding: 1rem 0;
+            background: transparent;
+            border-top: 1px solid {t["border"]};
+            border-bottom: 1px solid {t["border"]};
+            border-radius: 0;
+        }}
+        [data-testid="stMetricValue"] {{
+            color: {t["text"]};
+            font-family: {t["font_mono"]};
+            font-weight: 400;
+        }}
+        [data-testid="stMetricLabel"] {{
+            color: {t["text_muted"]};
+            font-size: 0.68rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }}
+        [data-testid="stMetricDelta"], code, .stCode, [data-testid="stCode"] {{
             font-family: {t["font_mono"]} !important;
         }}
 
         [data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #0D1420 0%, #090F18 100%);
+            background: #080809;
             border-right: 1px solid {t["border"]};
         }}
-
         [data-testid="stSidebarNav"] a {{
-            border-radius: 10px;
-            margin: 0.15rem 0.55rem;
-            padding: 0.62rem 0.8rem;
-            color: #AAB5C5;
-            transition: background 140ms ease, color 140ms ease;
+            color: #94949B;
+            margin: 0;
+            padding: 0.72rem 1.2rem;
+            border-left: 2px solid transparent;
+            border-radius: 0;
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
         }}
-
-        [data-testid="stSidebarNav"] a:hover {{
-            background: rgba(88, 225, 193, 0.07);
-            color: {t["text"]};
-        }}
-
+        [data-testid="stSidebarNav"] a:hover {{ color: #fff; background: transparent; }}
         [data-testid="stSidebarNav"] a[aria-current="page"] {{
-            color: {t["text"]};
-            background: linear-gradient(90deg, rgba(88, 225, 193, 0.14), rgba(88, 225, 193, 0.035));
-            border: 1px solid rgba(88, 225, 193, 0.18);
+            color: #fff;
+            background: transparent;
+            border-left-color: {t["primary"]};
         }}
-
-        [data-testid="stSidebarNavLink"] span[label="app"] p {{
-            font-size: 0;
-        }}
-
+        [data-testid="stSidebarNavLink"] span[label="app"] p {{ font-size: 0; }}
         [data-testid="stSidebarNavLink"] span[label="app"] p::after {{
             content: "Dashboard";
-            font-size: 0.875rem;
+            font-size: 0.72rem;
         }}
 
-        [data-baseweb="input"],
-        [data-baseweb="select"] > div,
+        [data-baseweb="input"], [data-baseweb="select"] > div,
         [data-baseweb="base-input"] {{
-            background-color: rgba(13, 20, 32, 0.94) !important;
-            border-color: {t["border"]} !important;
-            border-radius: 11px !important;
+            background-color: #0A0A0C !important;
+            border-color: #34343A !important;
+            border-radius: 2px !important;
         }}
-
         [data-baseweb="input"]:focus-within,
         [data-baseweb="select"] > div:focus-within {{
-            border-color: rgba(88, 225, 193, 0.7) !important;
-            box-shadow: 0 0 0 3px rgba(88, 225, 193, 0.08) !important;
+            border-color: {t["primary"]} !important;
+            box-shadow: none !important;
         }}
-
         [data-testid="stVerticalBlockBorderWrapper"] > div,
-        [data-testid="stExpander"],
-        [data-testid="stDataFrame"] {{
+        [data-testid="stExpander"], [data-testid="stDataFrame"] {{
             border: 1px solid {t["border"]} !important;
-            border-radius: 13px !important;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12) !important;
-            overflow: hidden;
+            border-radius: 2px !important;
+            box-shadow: none !important;
         }}
-
         [data-testid="stPlotlyChart"] {{
             border: 1px solid {t["border"]};
-            border-radius: 16px;
+            border-radius: 0;
             overflow: hidden;
-            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
         }}
-
-        .stAlert {{
-            border: 1px solid {t["border"]};
-            border-radius: 12px;
-            box-shadow: none;
-        }}
+        .stAlert {{ border: 1px solid {t["border"]}; border-radius: 2px; }}
 
         button[kind="primary"] {{
-            background-color: {t["primary"]};
-            color: {t["background"]};
-            border-radius: 10px;
-            border: none;
-            font-weight: 600;
-            box-shadow: 0 8px 24px rgba(88, 225, 193, 0.16);
+            background: #F5F5F2;
+            color: #050505;
+            border: 0;
+            border-radius: 999px;
+            padding-left: 1.25rem;
+            padding-right: 1.25rem;
+            font-weight: 650;
+            box-shadow: none;
         }}
         button[kind="secondary"] {{
-            border-radius: 10px;
+            color: #E7E7E4;
+            background: transparent;
             border: 1px solid {t["border"]};
-            background: {t["surface"]};
+            border-radius: 999px;
         }}
-
-        [data-testid="stProgress"] > div > div {{
-            background-color: {t["primary"]};
-        }}
-
-        hr {{
-            border-color: {t["border"]};
-        }}
+        [data-testid="stProgress"] > div > div {{ background-color: {t["primary"]}; }}
+        hr {{ border-color: {t["border"]}; }}
 
         @media (max-width: 760px) {{
-            .block-container {{
-                padding-top: 1.2rem;
+            .block-container {{ padding-top: 1rem; }}
+            .fincent-home-hero {{
+                min-height: 500px;
+                padding: 1.25rem 1.25rem 1.7rem;
+                background-position: 58% center;
             }}
-            .fincent-page-header {{
-                align-items: flex-start;
-                padding: 1rem;
-            }}
-            .fincent-brand-mark {{
-                width: 46px;
-                height: 46px;
-                flex-basis: 46px;
-            }}
-            .fincent-status {{
-                display: none;
-            }}
+            .fincent-wordmark {{ left: 1.25rem; top: 1.2rem; }}
+            .fincent-home-hero h1 {{ font-size: clamp(3rem, 16vw, 5rem); }}
+            .fincent-section-header {{ padding: 1.35rem 0; }}
         }}
         </style>
         """,
@@ -343,20 +263,47 @@ def apply_theme() -> None:
     )
 
 
-def page_header(title: str, kicker: str, description: str) -> None:
-    """Render the branded masthead used at the top of every page."""
+def _hero_data_uri() -> str:
+    asset = Path(__file__).resolve().parent / "assets" / "fincent-hero.png"
+    payload = b64encode(asset.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{payload}"
+
+
+def page_header(
+    title: str, kicker: str, description: str, *, hero: bool = False
+) -> None:
+    """Render an editorial hero on the dashboard or a restrained page heading."""
+    headline = "<br>".join(escape(line) for line in title.split("\n"))
+    if hero:
+        background = (
+            "linear-gradient(90deg, rgba(0,0,0,.98) 0%, rgba(0,0,0,.82) 35%, "
+            "rgba(0,0,0,.08) 72%), "
+            f"url('{_hero_data_uri()}')"
+        )
+        st.markdown(
+            f"""
+            <div class="fincent-page-header fincent-home-hero" style="background-image:{background}">
+                <div class="fincent-wordmark">
+                    <span class="fincent-wordmark-symbol"></span> fincent
+                </div>
+                <div class="fincent-header-copy">
+                    <div class="fincent-kicker">{escape(kicker)}</div>
+                    <h1>{headline}</h1>
+                    <p>{escape(description)}</p>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+
     st.markdown(
         f"""
-        <div class="fincent-page-header">
-            <div class="fincent-brand-mark">F</div>
+        <div class="fincent-page-header fincent-section-header">
             <div class="fincent-header-copy">
                 <div class="fincent-kicker">{escape(kicker)}</div>
-                <h1>{escape(title)}</h1>
+                <h1>{headline}</h1>
                 <p>{escape(description)}</p>
-            </div>
-            <div class="fincent-status">
-                <span class="fincent-status-dot"></span>
-                RESEARCH MODE
             </div>
         </div>
         """,
@@ -479,7 +426,7 @@ def render_price_chart(history: pd.DataFrame, chart_type: str) -> None:
             mode="lines",
             line=dict(color=t["primary"], width=2.2),
             fill="tozeroy",
-            fillcolor="rgba(88, 225, 193, 0.075)",
+            fillcolor="rgba(92, 111, 255, 0.09)",
         )
     )
     st.plotly_chart(_themed_layout(fig), width='stretch')

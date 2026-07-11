@@ -16,9 +16,10 @@ st.set_page_config(page_title="Fincent", page_icon="📈", layout="wide")
 ui.apply_theme()
 
 ui.page_header(
-    "Fincent",
-    "Market intelligence / personal terminal",
-    "One focused workspace for price action, valuation, risk, and investor-framework analysis.",
+    "Read the market.\nKnow the business.",
+    "Fincent / independent market intelligence",
+    "Price action, intrinsic value, risk, and twenty investor frameworks — brought into one disciplined research view.",
+    hero=True,
 )
 provider = ui.select_provider()
 
