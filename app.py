@@ -13,6 +13,7 @@ from config import DASHBOARD_PERIODS, HISTORY_PERIODS, RSI_TIMEFRAMES
 from data import DataSourceError, cache
 
 st.set_page_config(page_title="Fincent", page_icon="📈", layout="wide")
+ui.apply_theme()
 
 st.title("📈 Fincent")
 st.caption(

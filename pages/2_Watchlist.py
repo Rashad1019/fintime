@@ -6,6 +6,7 @@ import ui
 from data import cache, yahoo
 from storage import db
 
+ui.apply_theme()
 st.title("Watchlist")
 provider = ui.select_provider()
 
@@ -43,7 +44,7 @@ for symbol in symbols:
         }
     )
 
-st.dataframe(rows, use_container_width=True, hide_index=True)
+st.dataframe(rows, width='stretch', hide_index=True)
 if any_fallback:
     st.caption("⚠ = Yahoo Finance unavailable; price is the last close from the fallback source.")
 

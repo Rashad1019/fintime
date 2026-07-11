@@ -8,6 +8,7 @@ from config import DEFAULT_PERIOD, HISTORY_PERIODS
 from data import DataSourceError, cache
 from formatting import fmt_money, fmt_pct, fmt_ratio
 
+ui.apply_theme()
 st.title("Quote")
 provider = ui.select_provider()
 

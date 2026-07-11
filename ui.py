@@ -1,4 +1,10 @@
-"""Shared Streamlit UI helpers used across pages."""
+"""Shared Streamlit UI helpers used across pages.
+
+Visual identity: "Terminal Amber" — a dark trading-terminal aesthetic.
+Palette and fonts are defined once in THEME/apply_theme() so every page
+stays visually consistent; call ui.apply_theme() right after
+st.set_page_config() on every page.
+"""
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -6,6 +12,119 @@ import streamlit as st
 
 from config import INTRADAY_WINDOW_HOURS
 from data import yahoo
+
+# Single source of truth for the palette — reused by CSS injection and by
+# the Plotly chart colors so charts match the chrome around them.
+THEME = {
+    "background": "#0A0E14",
+    "surface": "#12161F",
+    "surface_alt": "#171C27",
+    "border": "#262C38",
+    "primary": "#FFB020",
+    "text": "#E8E6E1",
+    "text_muted": "#8A8F9C",
+    "positive": "#3ECF8E",
+    "negative": "#FF5C5C",
+    "font_body": "'Inter', sans-serif",
+    "font_mono": "'JetBrains Mono', monospace",
+}
+
+_GOOGLE_FONTS_URL = (
+    "https://fonts.googleapis.com/css2?"
+    "family=Inter:wght@400;500;600;700&"
+    "family=JetBrains+Mono:wght@400;500;600&display=swap"
+)
+
+
+def apply_theme() -> None:
+    """Inject fonts and CSS for the Terminal Amber look.
+
+    Call once per page, right after st.set_page_config(). Idempotent —
+    Streamlit re-renders this markdown block on every rerun harmlessly.
+    """
+    t = THEME
+    st.markdown(
+        f"""
+        <style>
+        @import url('{_GOOGLE_FONTS_URL}');
+
+        html, body, [class*="css"] {{
+            font-family: {t["font_body"]};
+        }}
+
+        h1, h2, h3, h4 {{
+            font-family: {t["font_body"]};
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }}
+
+        /* Numeric displays read as terminal data, not prose. */
+        [data-testid="stMetricValue"] {{
+            font-family: {t["font_mono"]};
+            font-weight: 600;
+        }}
+        [data-testid="stMetricLabel"] {{
+            font-family: {t["font_body"]};
+            color: {t["text_muted"]};
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }}
+        [data-testid="stMetricDelta"] {{
+            font-family: {t["font_mono"]};
+        }}
+        [data-testid="stMetric"] {{
+            background-color: {t["surface"]};
+            border: 1px solid {t["border"]};
+            border-radius: 2px;
+            padding: 0.85rem 1rem;
+        }}
+
+        code, .stCode, [data-testid="stCode"] {{
+            font-family: {t["font_mono"]} !important;
+        }}
+
+        [data-testid="stSidebar"] {{
+            background-color: {t["surface"]};
+            border-right: 1px solid {t["border"]};
+        }}
+
+        /* Hairline borders, no shadows — matches bordered containers,
+           expanders, and dataframes to the terminal-panel language. */
+        [data-testid="stVerticalBlockBorderWrapper"] > div,
+        [data-testid="stExpander"],
+        [data-testid="stDataFrame"] {{
+            border: 1px solid {t["border"]} !important;
+            border-radius: 2px !important;
+            box-shadow: none !important;
+        }}
+
+        .stAlert {{
+            border: 1px solid {t["border"]};
+            border-radius: 2px;
+            box-shadow: none;
+        }}
+
+        button[kind="primary"] {{
+            background-color: {t["primary"]};
+            color: {t["background"]};
+            border-radius: 2px;
+            border: none;
+            font-weight: 600;
+        }}
+        button[kind="secondary"] {{
+            border-radius: 2px;
+            border: 1px solid {t["border"]};
+        }}
+
+        hr {{
+            border-color: {t["border"]};
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 _PROVIDER_LABELS = {
     yahoo.PROVIDER_AUTO: "Auto (Yahoo → FMP → Backup)",
@@ -69,8 +188,28 @@ def slice_intraday_window(history: pd.DataFrame, period: str) -> pd.DataFrame:
     return history[history.index >= cutoff]
 
 
+def _themed_layout(fig: go.Figure) -> go.Figure:
+    """Apply the terminal-dark chart chrome shared by both chart types."""
+    t = THEME
+    fig.update_layout(
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=420,
+        paper_bgcolor=t["surface"],
+        plot_bgcolor=t["surface"],
+        font=dict(family=t["font_body"], color=t["text_muted"]),
+        xaxis=dict(gridcolor=t["border"], showgrid=True, zeroline=False),
+        yaxis=dict(gridcolor=t["border"], showgrid=True, zeroline=False),
+    )
+    return fig
+
+
 def render_price_chart(history: pd.DataFrame, chart_type: str) -> None:
-    """Candlestick chart when OHLC is available, line chart otherwise."""
+    """Candlestick chart when OHLC is available, line chart otherwise.
+
+    Both use Plotly (not st.line_chart) so colors stay on-theme.
+    """
+    t = THEME
     has_ohlc = {"Open", "High", "Low"}.issubset(history.columns)
     if chart_type == "Candles" and has_ohlc:
         fig = go.Figure(
@@ -80,15 +219,24 @@ def render_price_chart(history: pd.DataFrame, chart_type: str) -> None:
                 high=history["High"],
                 low=history["Low"],
                 close=history["Close"],
+                increasing_line_color=t["positive"],
+                decreasing_line_color=t["negative"],
+                increasing_fillcolor=t["positive"],
+                decreasing_fillcolor=t["negative"],
             )
         )
-        fig.update_layout(
-            xaxis_rangeslider_visible=False,
-            margin=dict(l=0, r=0, t=10, b=0),
-            height=420,
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(_themed_layout(fig), width='stretch')
         return
     if chart_type == "Candles" and not has_ohlc:
         st.caption("Candles unavailable for this data source — showing line chart.")
-    st.line_chart(history["Close"])
+    fig = go.Figure(
+        go.Scatter(
+            x=history.index,
+            y=history["Close"],
+            mode="lines",
+            line=dict(color=t["primary"], width=1.75),
+            fill="tozeroy",
+            fillcolor="rgba(255, 176, 32, 0.08)",
+        )
+    )
+    st.plotly_chart(_themed_layout(fig), width='stretch')

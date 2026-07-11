@@ -15,6 +15,7 @@ import ui
 from data import DataSourceError, cache
 from formatting import fmt_money, fmt_pct
 
+ui.apply_theme()
 st.title("Analytics")
 provider = ui.select_provider()
 

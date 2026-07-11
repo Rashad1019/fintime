@@ -1,0 +1,11 @@
+# Fincent theme: "Terminal Amber" — dark trading-terminal aesthetic.
+# Fine typography/border details are layered on top via ui.apply_theme()
+# CSS injection (config.toml alone can't set fonts beyond serif/sans/mono
+# or do hairline borders / delta colors).
+[theme]
+base = "dark"
+primaryColor = "#FFB020"
+backgroundColor = "#0A0E14"
+secondaryBackgroundColor = "#12161F"
+textColor = "#E8E6E1"
+font = "sans serif"
