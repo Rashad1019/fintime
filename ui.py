@@ -1,6 +1,6 @@
 """Shared Streamlit UI helpers used across pages.
 
-Visual identity: "Terminal Amber" — a dark trading-terminal aesthetic.
+Visual identity: "Midnight Blue" — a dark, modern fintech aesthetic.
 Palette and fonts are defined once in THEME/apply_theme() so every page
 stays visually consistent; call ui.apply_theme() right after
 st.set_page_config() on every page.
@@ -16,15 +16,15 @@ from data import yahoo
 # Single source of truth for the palette — reused by CSS injection and by
 # the Plotly chart colors so charts match the chrome around them.
 THEME = {
-    "background": "#0A0E14",
-    "surface": "#12161F",
-    "surface_alt": "#171C27",
-    "border": "#262C38",
-    "primary": "#FFB020",
-    "text": "#E8E6E1",
-    "text_muted": "#8A8F9C",
-    "positive": "#3ECF8E",
-    "negative": "#FF5C5C",
+    "background": "#0B1220",
+    "surface": "#131D2E",
+    "surface_alt": "#1A273B",
+    "border": "#263852",
+    "primary": "#3B82F6",
+    "text": "#F1F5F9",
+    "text_muted": "#94A3B8",
+    "positive": "#22C55E",
+    "negative": "#F87171",
     "font_body": "'Inter', sans-serif",
     "font_mono": "'JetBrains Mono', monospace",
 }
@@ -37,7 +37,7 @@ _GOOGLE_FONTS_URL = (
 
 
 def apply_theme() -> None:
-    """Inject fonts and CSS for the Terminal Amber look.
+    """Inject fonts and CSS for the Midnight Blue look.
 
     Call once per page, right after st.set_page_config(). Idempotent —
     Streamlit re-renders this markdown block on every rerun harmlessly.
@@ -50,6 +50,16 @@ def apply_theme() -> None:
 
         html, body, [class*="css"] {{
             font-family: {t["font_body"]};
+        }}
+
+        .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stHeader"] {{
+            background-color: {t["background"]};
+        }}
+
+        [data-testid="stAppViewContainer"] {{
+            color: {t["text"]};
         }}
 
         h1, h2, h3, h4 {{
