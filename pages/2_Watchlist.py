@@ -7,7 +7,11 @@ from data import cache, yahoo
 from storage import db
 
 ui.apply_theme()
-st.title("Watchlist")
+ui.page_header(
+    "Watchlist",
+    "Portfolio radar / saved ideas",
+    "Keep a compact monitor of the companies you want to follow closely.",
+)
 provider = ui.select_provider()
 
 with st.form("add_ticker", clear_on_submit=True):

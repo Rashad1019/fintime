@@ -15,10 +15,10 @@ from data import DataSourceError, cache
 st.set_page_config(page_title="Fincent", page_icon="📈", layout="wide")
 ui.apply_theme()
 
-st.title("📈 Fincent")
-st.caption(
-    "Quote — charts and ratios · Watchlist — saved tickers · "
-    "Analytics — DCF and risk · Agents — 20 investor personas"
+ui.page_header(
+    "Fincent",
+    "Market intelligence / personal terminal",
+    "One focused workspace for price action, valuation, risk, and investor-framework analysis.",
 )
 provider = ui.select_provider()
 

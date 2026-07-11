@@ -19,10 +19,10 @@ from config import (
 from data import DataSourceError, cache
 
 ui.apply_theme()
-st.title("Investor agents")
-st.caption(
-    "Each persona gets the ticker's real computed numbers — ratios, DCF, risk, "
-    "technicals — so the analysis is grounded in data, not invented figures."
+ui.page_header(
+    "Investor agents",
+    "Framework studio / 20 perspectives",
+    "Run real computed ratios, DCF, risk, and technicals through distinct investor frameworks.",
 )
 provider = ui.select_provider()
 

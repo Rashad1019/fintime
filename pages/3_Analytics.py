@@ -16,7 +16,11 @@ from data import DataSourceError, cache
 from formatting import fmt_money, fmt_pct
 
 ui.apply_theme()
-st.title("Analytics")
+ui.page_header(
+    "Analytics",
+    "Valuation lab / risk desk",
+    "Pressure-test intrinsic value assumptions and measure recent market risk.",
+)
 provider = ui.select_provider()
 
 ticker = st.text_input("Ticker", value="AAPL").strip().upper()

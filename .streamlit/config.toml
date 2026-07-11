@@ -1,11 +1,11 @@
-# Fincent theme: "Terminal Amber" — dark trading-terminal aesthetic.
+# Fincent theme: "Obsidian Signal" — focused institutional terminal.
 # Fine typography/border details are layered on top via ui.apply_theme()
 # CSS injection (config.toml alone can't set fonts beyond serif/sans/mono
 # or do hairline borders / delta colors).
 [theme]
 base = "dark"
-primaryColor = "#FFB020"
-backgroundColor = "#0A0E14"
-secondaryBackgroundColor = "#12161F"
-textColor = "#E8E6E1"
+primaryColor = "#58E1C1"
+backgroundColor = "#070B12"
+secondaryBackgroundColor = "#0D1420"
+textColor = "#F5F7FA"
 font = "sans serif"

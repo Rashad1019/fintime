@@ -9,7 +9,11 @@ from data import DataSourceError, cache
 from formatting import fmt_money, fmt_pct, fmt_ratio
 
 ui.apply_theme()
-st.title("Quote")
+ui.page_header(
+    "Quote",
+    "Market data / company snapshot",
+    "Explore price action, market value, fundamentals, and core valuation ratios.",
+)
 provider = ui.select_provider()
 
 period_labels = list(HISTORY_PERIODS)
