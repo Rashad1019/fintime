@@ -76,6 +76,39 @@ class TestSignals:
         assert "no entry signals" in entries[0].lower()
 
 
+class TestResampleCloses:
+    def test_none_rule_returns_input_unchanged(self):
+        prices = _series([1.0, 2.0, 3.0])
+        assert technicals.resample_closes(prices, None) is prices
+
+    def test_resamples_hourly_to_4h_last_close(self):
+        hourly = pd.Series(
+            range(8), index=pd.date_range("2026-01-01", periods=8, freq="h")
+        )
+        four_hour = technicals.resample_closes(hourly, "4h")
+        assert len(four_hour) == 2
+        assert list(four_hour) == [3, 7]  # last close of each 4h bucket
+
+
+class TestRsiSignal:
+    def test_overbought_signal(self):
+        text = technicals.rsi_signal(80.0, "4-hour")
+        assert "4-hour" in text
+        assert "overbought" in text.lower()
+
+    def test_oversold_signal(self):
+        text = technicals.rsi_signal(20.0, "weekly")
+        assert "oversold" in text.lower()
+
+    def test_neutral_signal(self):
+        text = technicals.rsi_signal(50.0, "daily")
+        assert "neutral" in text.lower()
+
+    def test_missing_value_signal(self):
+        text = technicals.rsi_signal(None, "monthly")
+        assert "not enough" in text.lower()
+
+
 class TestSentiment:
     def test_rising_prices_are_bullish(self):
         verdict = technicals.sentiment(technicals.build_summary(RISING))

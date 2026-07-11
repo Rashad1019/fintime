@@ -62,7 +62,7 @@ def build_summary(prices: pd.Series) -> dict:
     }
 
 
-def _rsi_zone(value: float | None) -> str:
+def rsi_zone(value: float | None) -> str:
     if value is None:
         return "unknown"
     if value >= RSI_OVERBOUGHT:
@@ -70,6 +70,38 @@ def _rsi_zone(value: float | None) -> str:
     if value <= RSI_OVERSOLD:
         return "oversold"
     return "neutral"
+
+
+def resample_closes(prices: pd.Series, rule: str | None) -> pd.Series:
+    """Downsample closes to bigger bars (e.g. hourly -> 4h). None = as-is."""
+    if rule is None:
+        return prices
+    return prices.resample(rule).last().dropna()
+
+
+def rsi_signal(value: float | None, bar_label: str) -> str:
+    """One-line trader interpretation of an RSI reading on a given bar size."""
+    if value is None:
+        return (
+            f"Not enough {bar_label} bars to compute RSI on this timeframe."
+        )
+    zone = rsi_zone(value)
+    if zone == "overbought":
+        return (
+            f"On the {bar_label} timeframe, RSI at {value:.0f} is overbought — "
+            "momentum is stretched; chasing an entry here is risky and "
+            "pullbacks are common."
+        )
+    if zone == "oversold":
+        return (
+            f"On the {bar_label} timeframe, RSI at {value:.0f} is oversold — "
+            "selling pressure may be exhausted; watch for a bounce or a "
+            "basing pattern before acting."
+        )
+    return (
+        f"On the {bar_label} timeframe, RSI at {value:.0f} is in the neutral "
+        "zone — no overbought/oversold edge; let the trend decide."
+    )
 
 
 def enter_suggestions(summary: dict) -> list[str]:
@@ -182,5 +214,5 @@ def sentiment(summary: dict) -> dict:
         "label": label,
         "score": score,
         "reasons": [reason for _, reason in votes],
-        "rsi_zone": _rsi_zone(rsi_14),
+        "rsi_zone": rsi_zone(rsi_14),
     }

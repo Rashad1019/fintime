@@ -9,7 +9,7 @@ import streamlit as st
 
 import ui
 from analytics import technicals
-from config import DASHBOARD_PERIODS, HISTORY_PERIODS
+from config import DASHBOARD_PERIODS, HISTORY_PERIODS, RSI_TIMEFRAMES
 from data import DataSourceError, cache
 
 st.set_page_config(page_title="Fincent", page_icon="📈", layout="wide")
@@ -70,19 +70,39 @@ with st.expander("Why this sentiment?"):
         "averages, RSI momentum, and the 1-month return."
     )
 
-# --- RSI information ---
+# --- RSI information (computed on the selected timeframe's own bars) ---
 st.header("RSI")
-rsi_value = summary["rsi_14"]
+rsi_range, rsi_interval, rsi_resample, bar_label = RSI_TIMEFRAMES[period]
+timeframe_rsi = None
+try:
+    rsi_history = cache.get_history(ticker, rsi_range, rsi_interval, provider)
+    timeframe_prices = technicals.resample_closes(rsi_history["Close"], rsi_resample)
+    timeframe_rsi = technicals.rsi(timeframe_prices)
+except DataSourceError:
+    st.caption(f"Could not fetch {bar_label} bars for this timeframe's RSI.")
+
+daily_rsi = summary["rsi_14"]
 rsi_cols = st.columns(3)
-rsi_cols[0].metric("RSI (14-day)", "N/A" if rsi_value is None else f"{rsi_value:.0f}")
-rsi_cols[1].metric("Zone", verdict["rsi_zone"].capitalize())
-if rsi_value is not None:
-    rsi_cols[2].progress(int(rsi_value), text="0 — oversold · 100 — overbought")
+rsi_cols[0].metric(
+    f"RSI — {bar_label} bars",
+    "N/A" if timeframe_rsi is None else f"{timeframe_rsi:.0f}",
+)
+rsi_cols[1].metric("Zone", technicals.rsi_zone(timeframe_rsi).capitalize())
+if bar_label != "daily":
+    rsi_cols[2].metric(
+        "RSI — daily (for comparison)",
+        "N/A" if daily_rsi is None else f"{daily_rsi:.0f}",
+    )
+if timeframe_rsi is not None:
+    st.progress(int(timeframe_rsi), text="0 — oversold · 100 — overbought")
+st.markdown(technicals.rsi_signal(timeframe_rsi, bar_label))
 st.caption(
     "RSI (Relative Strength Index) measures the speed of recent price "
-    "changes on a 0-100 scale. Above 70 the stock is considered overbought "
-    "(gains may be stretched); below 30 it's oversold (selling may be "
-    "exhausted). Between the two, RSI mostly tracks the trend's momentum."
+    "changes on a 0-100 scale — above 70 is overbought, below 30 is "
+    "oversold. It's computed over 14 bars of the chart's timeframe "
+    f"(currently {bar_label} bars), which is how traders read 'the 4-hour "
+    "RSI' vs 'the daily RSI': shorter bars flag short-lived swings, longer "
+    "bars flag durable ones."
 )
 
 # --- Enter / Exit suggestions ---
