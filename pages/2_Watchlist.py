@@ -2,10 +2,12 @@
 
 import streamlit as st
 
+import ui
 from data import cache, yahoo
 from storage import db
 
 st.title("Watchlist")
+provider = ui.select_provider()
 
 with st.form("add_ticker", clear_on_submit=True):
     col_input, col_button = st.columns([3, 1])
@@ -21,7 +23,7 @@ if not symbols:
     st.stop()
 
 with st.spinner("Fetching prices..."):
-    snapshots = cache.get_snapshots(tuple(symbols))
+    snapshots = cache.get_snapshots(tuple(symbols), provider)
 
 rows = []
 any_fallback = False

@@ -20,27 +20,34 @@ _MAX_PARALLEL_FETCHES = 8
 
 
 @st.cache_data(ttl=QUOTE_TTL_SECONDS, show_spinner=False)
-def get_snapshot(ticker: str) -> dict:
+def get_snapshot(ticker: str, provider: str = yahoo.PROVIDER_AUTO) -> dict:
     """Cached quote + fundamentals for one ticker (see yahoo.fetch_snapshot)."""
-    return yahoo.fetch_snapshot(ticker)
+    return yahoo.fetch_snapshot(ticker, provider)
 
 
 @st.cache_data(ttl=HISTORY_TTL_SECONDS, show_spinner=False)
-def get_history(ticker: str, period: str = "1y", interval: str = "1d") -> pd.DataFrame:
+def get_history(
+    ticker: str,
+    period: str = "1y",
+    interval: str = "1d",
+    provider: str = yahoo.PROVIDER_AUTO,
+) -> pd.DataFrame:
     """Cached OHLC prices."""
-    return yahoo.fetch_history(ticker, period, interval)
+    return yahoo.fetch_history(ticker, period, interval, provider)
 
 
-def _snapshot_or_none(ticker: str) -> dict | None:
+def _snapshot_or_none(ticker: str, provider: str) -> dict | None:
     try:
-        return yahoo.fetch_snapshot(ticker)
+        return yahoo.fetch_snapshot(ticker, provider)
     except DataSourceError:
         logger.warning("Snapshot fetch failed for %s", ticker, exc_info=True)
         return None
 
 
 @st.cache_data(ttl=QUOTE_TTL_SECONDS, show_spinner=False)
-def get_snapshots(tickers: tuple[str, ...]) -> dict[str, dict | None]:
+def get_snapshots(
+    tickers: tuple[str, ...], provider: str = yahoo.PROVIDER_AUTO
+) -> dict[str, dict | None]:
     """Snapshots for a whole watchlist, fetched in parallel.
 
     Workers run only pure data.yahoo code (no Streamlit calls in threads).
@@ -50,5 +57,5 @@ def get_snapshots(tickers: tuple[str, ...]) -> dict[str, dict | None]:
         return {}
     workers = min(_MAX_PARALLEL_FETCHES, len(tickers))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = pool.map(_snapshot_or_none, tickers)
+        results = pool.map(lambda t: _snapshot_or_none(t, provider), tickers)
     return dict(zip(tickers, results))

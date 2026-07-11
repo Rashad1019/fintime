@@ -4,12 +4,14 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import ui
 from analytics.ratios import compute_ratios
 from config import DEFAULT_PERIOD, HISTORY_PERIODS
-from data import DataSourceError, cache, yahoo
+from data import DataSourceError, cache
 from formatting import fmt_money, fmt_pct, fmt_ratio
 
 st.title("Quote")
+provider = ui.select_provider()
 
 period_labels = list(HISTORY_PERIODS)
 col_ticker, col_period, col_chart = st.columns([2, 1, 1])
@@ -25,8 +27,8 @@ if not ticker:
 chart_range, chart_interval = HISTORY_PERIODS[period]
 try:
     with st.spinner(f"Fetching {ticker}..."):
-        snapshot = cache.get_snapshot(ticker)
-        history = cache.get_history(ticker, chart_range, chart_interval)
+        snapshot = cache.get_snapshot(ticker, provider)
+        history = cache.get_history(ticker, chart_range, chart_interval, provider)
 except DataSourceError as exc:
     st.error(str(exc))
     st.stop()
@@ -36,11 +38,7 @@ if period == "1h":
     history = history[history.index >= history.index.max() - pd.Timedelta(hours=1)]
 
 quote = snapshot["quote"]
-if snapshot["source"] == yahoo.SOURCE_FALLBACK:
-    st.warning(
-        "Yahoo Finance is unavailable — showing the last close from the "
-        "fallback chart API. Name, market cap, and fundamentals are missing."
-    )
+ui.show_source_banner(snapshot["source"], provider)
 
 st.subheader(quote["name"])
 metric_cols = st.columns(3)

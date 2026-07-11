@@ -1,28 +1,95 @@
-"""Fincent — personal research terminal. Streamlit entrypoint."""
+"""Fincent — personal research terminal. Streamlit entrypoint.
+
+The front page is a technical dashboard: sentiment, RSI, and rule-based
+enter/exit suggestions for one ticker. Deeper tools live in the sidebar
+pages (Quote, Watchlist, Analytics, Agents).
+"""
 
 import streamlit as st
+
+import ui
+from analytics import technicals
+from data import DataSourceError, cache
 
 st.set_page_config(page_title="Fincent", page_icon="📈", layout="wide")
 
 st.title("📈 Fincent")
-st.caption("Personal research terminal — quotes, ratios, DCF, risk, and investor-persona analysis.")
+st.caption(
+    "Quote — charts and ratios · Watchlist — saved tickers · "
+    "Analytics — DCF and risk · Agents — 20 investor personas"
+)
+provider = ui.select_provider()
 
-st.markdown(
-    """
-Use the sidebar to navigate:
+TECHNICALS_PERIOD = "1y"  # enough daily bars for the 200-day average
 
-- **Quote** — look up a ticker: price chart, key stats, valuation ratios
-- **Watchlist** — save tickers and see their current prices at a glance
-- **Analytics** — DCF intrinsic-value calculator and risk metrics
-- **Agents** — run a ticker's numbers past 20 investor personas, from Buffett and Graham to Cathie Wood and Ian Dunlap
+ticker = st.text_input("Ticker", value="AAPL").strip().upper()
+if not ticker:
+    st.stop()
 
-Data comes from Yahoo Finance (free, no key) with a direct chart-API fallback.
-Persona analysis uses OpenRouter — set `OPENROUTER_API_KEY` in `.env`.
-"""
+try:
+    with st.spinner(f"Fetching {ticker}..."):
+        snapshot = cache.get_snapshot(ticker, provider)
+        history = cache.get_history(ticker, TECHNICALS_PERIOD, provider=provider)
+except DataSourceError as exc:
+    st.error(str(exc))
+    st.stop()
+
+ui.show_source_banner(snapshot["source"], provider)
+
+quote = snapshot["quote"]
+summary = technicals.build_summary(history["Close"])
+verdict = technicals.sentiment(summary)
+
+st.subheader(quote["name"])
+
+# --- What is the sentiment ---
+_SENTIMENT_ICONS = {"Bullish": "🟢", "Neutral": "🟡", "Bearish": "🔴"}
+sentiment_cols = st.columns(3)
+sentiment_cols[0].metric(
+    "Sentiment", f"{_SENTIMENT_ICONS[verdict['label']]} {verdict['label']}"
+)
+sentiment_cols[1].metric("Price", f"{quote['price']:,.2f} {quote['currency'] or ''}".strip())
+sentiment_cols[2].metric(
+    "1-month move",
+    "N/A" if summary["return_1mo"] is None else f"{summary['return_1mo']:+.1%}",
+)
+with st.expander("Why this sentiment?"):
+    for reason in verdict["reasons"]:
+        st.markdown(f"- {reason}")
+    st.caption(
+        "Sentiment tallies simple votes: price vs. the 20/50/200-day "
+        "averages, RSI momentum, and the 1-month return."
+    )
+
+# --- RSI information ---
+st.header("RSI")
+rsi_value = summary["rsi_14"]
+rsi_cols = st.columns(3)
+rsi_cols[0].metric("RSI (14-day)", "N/A" if rsi_value is None else f"{rsi_value:.0f}")
+rsi_cols[1].metric("Zone", verdict["rsi_zone"].capitalize())
+if rsi_value is not None:
+    rsi_cols[2].progress(int(rsi_value), text="0 — oversold · 100 — overbought")
+st.caption(
+    "RSI (Relative Strength Index) measures the speed of recent price "
+    "changes on a 0-100 scale. Above 70 the stock is considered overbought "
+    "(gains may be stretched); below 30 it's oversold (selling may be "
+    "exhausted). Between the two, RSI mostly tracks the trend's momentum."
 )
 
-st.info(
-    "To use from your phone: run "
-    "`uv run streamlit run app.py --server.address 0.0.0.0` "
-    "and open `http://<this-pc's-local-ip>:8501` on the same WiFi."
+# --- Enter / Exit suggestions ---
+enter_col, exit_col = st.columns(2)
+with enter_col:
+    st.header("Enter suggestions")
+    for suggestion in technicals.enter_suggestions(summary):
+        st.markdown(f"- {suggestion}")
+with exit_col:
+    st.header("Exit suggestions")
+    for suggestion in technicals.exit_suggestions(summary):
+        st.markdown(f"- {suggestion}")
+
+st.divider()
+st.caption(
+    "Signals are rule-based readings of standard indicators (RSI, moving "
+    "averages) — informational only, not financial advice. Cross-check with "
+    "the Analytics page (DCF, risk) and the Agents page before acting."
 )

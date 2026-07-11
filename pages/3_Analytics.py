@@ -11,10 +11,12 @@ from config import (
     DCF_YEARS,
     RISK_HISTORY_PERIOD,
 )
+import ui
 from data import DataSourceError, cache
 from formatting import fmt_money, fmt_pct
 
 st.title("Analytics")
+provider = ui.select_provider()
 
 ticker = st.text_input("Ticker", value="AAPL").strip().upper()
 if not ticker:
@@ -22,11 +24,13 @@ if not ticker:
 
 try:
     with st.spinner(f"Fetching {ticker}..."):
-        snapshot = cache.get_snapshot(ticker)
-        history = cache.get_history(ticker, RISK_HISTORY_PERIOD)
+        snapshot = cache.get_snapshot(ticker, provider)
+        history = cache.get_history(ticker, RISK_HISTORY_PERIOD, provider=provider)
 except DataSourceError as exc:
     st.error(str(exc))
     st.stop()
+
+ui.show_source_banner(snapshot["source"], provider)
 
 fundamentals = snapshot["fundamentals"]
 if fundamentals is None:

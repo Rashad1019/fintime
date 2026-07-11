@@ -11,12 +11,17 @@ import logging
 import pandas as pd
 import yfinance as yf
 
-from data import fallback_source
+from data import DataSourceError, fallback_source, fmp_source
 
 logger = logging.getLogger(__name__)
 
 SOURCE_YAHOO = "yahoo"
+SOURCE_FMP = "fmp"
 SOURCE_FALLBACK = "fallback"
+
+# "auto" tries yfinance -> FMP -> chart API; the others force one source.
+PROVIDER_AUTO = "auto"
+PROVIDERS = (PROVIDER_AUTO, SOURCE_YAHOO, SOURCE_FMP, SOURCE_FALLBACK)
 
 
 def _quote_from_info(ticker: str, info: dict, price: float) -> dict:
@@ -59,39 +64,29 @@ def _fundamentals_from_info(info: dict, price: float) -> dict:
     }
 
 
-def fetch_snapshot(ticker: str) -> dict:
-    """Quote + fundamentals from a single .info call.
-
-    Always returns a usable quote — degrading to the chart API's last close
-    when yfinance fails. "fundamentals" is None on the degraded path, and
-    "source" says which path produced the data so the UI can show it.
-
-    Raises DataSourceError only when the fallback also fails.
-    """
-    ticker = ticker.upper()
-    info = None
+def _snapshot_from_yfinance(ticker: str) -> dict | None:
+    """Snapshot via the yfinance library, or None if it can't deliver."""
     try:
         info = yf.Ticker(ticker).info
     except Exception:
-        logger.warning(
-            "yfinance .info failed for %s; using chart-API fallback",
-            ticker,
-            exc_info=True,
-        )
+        logger.warning("yfinance .info failed for %s", ticker, exc_info=True)
+        return None
+    if not info:
+        return None
+    price = info.get("currentPrice") or info.get("regularMarketPrice")
+    if price is None:
+        logger.warning("yfinance returned no price for %s", ticker)
+        return None
+    price = float(price)
+    return {
+        "quote": _quote_from_info(ticker, info, price),
+        "fundamentals": _fundamentals_from_info(info, price),
+        "source": SOURCE_YAHOO,
+    }
 
-    if info:
-        price = info.get("currentPrice") or info.get("regularMarketPrice")
-        if price is not None:
-            price = float(price)
-            return {
-                "quote": _quote_from_info(ticker, info, price),
-                "fundamentals": _fundamentals_from_info(info, price),
-                "source": SOURCE_YAHOO,
-            }
-        logger.warning(
-            "yfinance returned no price for %s; using chart-API fallback", ticker
-        )
 
+def _snapshot_from_chart_api(ticker: str) -> dict:
+    """Price-only snapshot from Yahoo's raw chart API (no fundamentals)."""
     history = fallback_source.get_history(ticker, period="1mo")
     return {
         "quote": {
@@ -106,31 +101,99 @@ def fetch_snapshot(ticker: str) -> dict:
     }
 
 
+def fetch_snapshot(ticker: str, provider: str = PROVIDER_AUTO) -> dict:
+    """Quote + fundamentals from the chosen provider.
+
+    provider="auto" falls through yfinance -> FMP -> Yahoo chart API as
+    each source fails. FMP still returns full fundamentals, so DCF and
+    ratios keep working during a Yahoo outage; the chart API is a last
+    resort that only has price. Any other provider value forces exactly
+    that source and raises DataSourceError if it can't deliver. "source"
+    says which path produced the data so the UI can show it.
+    """
+    ticker = ticker.upper()
+
+    if provider == SOURCE_FMP:
+        return {**fmp_source.get_snapshot(ticker), "source": SOURCE_FMP}
+    if provider == SOURCE_FALLBACK:
+        return _snapshot_from_chart_api(ticker)
+
+    snapshot = _snapshot_from_yfinance(ticker)
+    if snapshot is not None:
+        return snapshot
+    if provider == SOURCE_YAHOO:
+        raise DataSourceError(
+            f"Yahoo Finance could not provide data for '{ticker}' — "
+            "switch the data provider or try again later."
+        )
+
+    try:
+        return {**fmp_source.get_snapshot(ticker), "source": SOURCE_FMP}
+    except DataSourceError:
+        logger.warning(
+            "FMP snapshot fetch failed for %s; using chart-API fallback",
+            ticker,
+            exc_info=True,
+        )
+
+    return _snapshot_from_chart_api(ticker)
+
+
 _OHLC_COLUMNS = ["Open", "High", "Low", "Close"]
 
 
-def fetch_history(ticker: str, period: str = "1y", interval: str = "1d") -> pd.DataFrame:
-    """OHLC prices. Tries the yfinance library first, then the raw chart API.
+def fetch_history(
+    ticker: str,
+    period: str = "1y",
+    interval: str = "1d",
+    provider: str = PROVIDER_AUTO,
+) -> pd.DataFrame:
+    """OHLC prices from the chosen provider.
 
-    Always includes a Close column; Open/High/Low are included when the
-    source provides them (needed for candlestick charts).
+    provider="auto" tries yfinance, then FMP, then the raw Yahoo chart API;
+    any other value forces exactly that source. Always includes a Close
+    column; Open/High/Low are included when the source provides them
+    (needed for candlestick charts).
     """
+    if provider == SOURCE_FMP:
+        return fmp_source.get_history(ticker, period, interval)
+    if provider == SOURCE_FALLBACK:
+        return fallback_source.get_history(ticker, period, interval)
+
     try:
         df = yf.Ticker(ticker).history(period=period, interval=interval)
         if not df.empty and "Close" in df.columns:
             return df[[col for col in _OHLC_COLUMNS if col in df.columns]]
         logger.warning(
-            "yfinance returned empty history for %s (%s/%s); using chart-API fallback",
+            "yfinance returned empty history for %s (%s/%s)",
             ticker,
             period,
             interval,
         )
     except Exception:
         logger.warning(
-            "yfinance history failed for %s (%s/%s); using chart-API fallback",
+            "yfinance history failed for %s (%s/%s)",
             ticker,
             period,
             interval,
             exc_info=True,
         )
+
+    if provider == SOURCE_YAHOO:
+        raise DataSourceError(
+            f"Yahoo Finance could not provide price history for '{ticker}' — "
+            "switch the data provider or try again later."
+        )
+
+    try:
+        return fmp_source.get_history(ticker, period, interval)
+    except DataSourceError:
+        logger.warning(
+            "FMP history fetch failed for %s (%s/%s); using chart-API fallback",
+            ticker,
+            period,
+            interval,
+            exc_info=True,
+        )
+
     return fallback_source.get_history(ticker, period, interval)

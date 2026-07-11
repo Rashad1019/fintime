@@ -2,8 +2,10 @@
 
 import streamlit as st
 
+import ui
 from agents import openrouter_client
 from agents.personas import PERSONAS, build_prompt
+from analytics import technicals
 from analytics.dcf import dcf_value
 from analytics.ratios import compute_ratios
 from analytics.risk import annualized_volatility, historical_var, sharpe_ratio
@@ -18,9 +20,10 @@ from data import DataSourceError, cache
 
 st.title("Investor agents")
 st.caption(
-    "Each persona gets the ticker's real computed numbers — ratios, DCF, risk — "
-    "so the analysis is grounded in data, not invented figures."
+    "Each persona gets the ticker's real computed numbers — ratios, DCF, risk, "
+    "technicals — so the analysis is grounded in data, not invented figures."
 )
+provider = ui.select_provider()
 
 col_ticker, col_persona = st.columns([1, 2])
 ticker = col_ticker.text_input("Ticker", value="AAPL").strip().upper()
@@ -34,11 +37,13 @@ if not st.button("Run analysis", type="primary") or not ticker or not selected:
 
 try:
     with st.spinner(f"Computing metrics for {ticker}..."):
-        snapshot = cache.get_snapshot(ticker)
-        history = cache.get_history(ticker, RISK_HISTORY_PERIOD)
+        snapshot = cache.get_snapshot(ticker, provider)
+        history = cache.get_history(ticker, RISK_HISTORY_PERIOD, provider=provider)
 except DataSourceError as exc:
     st.error(str(exc))
     st.stop()
+
+ui.show_source_banner(snapshot["source"], provider)
 
 fundamentals = snapshot["fundamentals"]
 if fundamentals is None:
@@ -73,6 +78,12 @@ try:
     metrics["historical_var_95"] = historical_var(prices)
 except ValueError:
     pass  # persona prompt will show N/A for missing risk metrics
+
+summary = technicals.build_summary(history["Close"])
+verdict = technicals.sentiment(summary)
+metrics["rsi_14"] = summary["rsi_14"]
+metrics["return_1mo"] = summary["return_1mo"]
+metrics["technical_sentiment"] = f"{verdict['label']} (score {verdict['score']:+d})"
 
 with st.expander("Numbers given to the personas", expanded=False):
     st.code(build_prompt(ticker, metrics))

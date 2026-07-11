@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from data import DataSourceError, fallback_source, yahoo
+from data import DataSourceError, fallback_source, fmp_source, yahoo
 
 FULL_INFO = {
     "longName": "Apple Inc.",
@@ -51,8 +51,30 @@ class _BrokenTicker:
         raise RuntimeError("yfinance is down")
 
 
-def test_snapshot_degrades_to_fallback_when_yfinance_fails(monkeypatch):
+def test_snapshot_degrades_to_fmp_when_yfinance_fails(monkeypatch):
     monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenTicker)
+    fmp_snapshot = {
+        "quote": {"ticker": "AAPL", "name": "Apple Inc.", "price": 150.0, "market_cap": 1, "currency": "USD"},
+        "fundamentals": {"price": 150.0, "eps": 6.0},
+    }
+    monkeypatch.setattr(
+        yahoo.fmp_source, "get_snapshot", lambda ticker: fmp_snapshot
+    )
+
+    snapshot = yahoo.fetch_snapshot("aapl")
+
+    assert snapshot["source"] == yahoo.SOURCE_FMP
+    assert snapshot["fundamentals"]["eps"] == 6.0
+    assert snapshot["quote"]["price"] == 150.0
+
+
+def test_snapshot_degrades_to_chart_fallback_when_yfinance_and_fmp_fail(monkeypatch):
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenTicker)
+    monkeypatch.setattr(
+        yahoo.fmp_source,
+        "get_snapshot",
+        lambda ticker: (_ for _ in ()).throw(DataSourceError("FMP down")),
+    )
     fallback_df = pd.DataFrame(
         {"Close": [100.0, 101.5]}, index=pd.to_datetime(["2026-07-01", "2026-07-02"])
     )
@@ -66,6 +88,109 @@ def test_snapshot_degrades_to_fallback_when_yfinance_fails(monkeypatch):
     assert snapshot["fundamentals"] is None
     assert snapshot["quote"]["ticker"] == "AAPL"
     assert snapshot["quote"]["price"] == 101.5
+
+
+def test_history_degrades_to_fmp_when_yfinance_fails(monkeypatch):
+    class _BrokenHistoryTicker:
+        def __init__(self, symbol):
+            pass
+
+        def history(self, period, interval):
+            raise RuntimeError("yfinance is down")
+
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenHistoryTicker)
+    fmp_df = pd.DataFrame({"Close": [200.0]}, index=pd.to_datetime(["2026-07-10"]))
+    monkeypatch.setattr(
+        yahoo.fmp_source, "get_history", lambda ticker, period, interval: fmp_df
+    )
+
+    df = yahoo.fetch_history("aapl")
+
+    assert list(df["Close"]) == [200.0]
+
+
+def test_history_degrades_to_chart_fallback_when_yfinance_and_fmp_fail(monkeypatch):
+    class _BrokenHistoryTicker:
+        def __init__(self, symbol):
+            pass
+
+        def history(self, period, interval):
+            raise RuntimeError("yfinance is down")
+
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenHistoryTicker)
+    monkeypatch.setattr(
+        yahoo.fmp_source,
+        "get_history",
+        lambda ticker, period, interval: (_ for _ in ()).throw(DataSourceError("FMP down")),
+    )
+    fallback_df = pd.DataFrame({"Close": [100.0]}, index=pd.to_datetime(["2026-07-01"]))
+    monkeypatch.setattr(
+        yahoo.fallback_source, "get_history", lambda ticker, period, interval: fallback_df
+    )
+
+    df = yahoo.fetch_history("aapl")
+
+    assert list(df["Close"]) == [100.0]
+
+
+def test_forced_yahoo_provider_raises_instead_of_falling_back(monkeypatch):
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenTicker)
+    monkeypatch.setattr(
+        yahoo.fmp_source,
+        "get_snapshot",
+        lambda ticker: pytest.fail("FMP must not be called when Yahoo is forced"),
+    )
+
+    with pytest.raises(DataSourceError, match="Yahoo Finance"):
+        yahoo.fetch_snapshot("AAPL", provider=yahoo.SOURCE_YAHOO)
+
+
+def test_forced_fmp_provider_skips_yfinance(monkeypatch):
+    monkeypatch.setattr(
+        yahoo.yf,
+        "Ticker",
+        lambda symbol: pytest.fail("yfinance must not be called when FMP is forced"),
+    )
+    fmp_snapshot = {
+        "quote": {"ticker": "AAPL", "name": "Apple Inc.", "price": 150.0, "market_cap": 1, "currency": "USD"},
+        "fundamentals": {"price": 150.0},
+    }
+    monkeypatch.setattr(yahoo.fmp_source, "get_snapshot", lambda ticker: fmp_snapshot)
+
+    snapshot = yahoo.fetch_snapshot("AAPL", provider=yahoo.SOURCE_FMP)
+
+    assert snapshot["source"] == yahoo.SOURCE_FMP
+
+
+def test_forced_backup_provider_returns_price_only_snapshot(monkeypatch):
+    monkeypatch.setattr(
+        yahoo.yf,
+        "Ticker",
+        lambda symbol: pytest.fail("yfinance must not be called when backup is forced"),
+    )
+    fallback_df = pd.DataFrame({"Close": [100.0]}, index=pd.to_datetime(["2026-07-01"]))
+    monkeypatch.setattr(
+        yahoo.fallback_source, "get_history", lambda ticker, period: fallback_df
+    )
+
+    snapshot = yahoo.fetch_snapshot("AAPL", provider=yahoo.SOURCE_FALLBACK)
+
+    assert snapshot["source"] == yahoo.SOURCE_FALLBACK
+    assert snapshot["fundamentals"] is None
+
+
+def test_forced_yahoo_history_raises_instead_of_falling_back(monkeypatch):
+    class _BrokenHistoryTicker:
+        def __init__(self, symbol):
+            pass
+
+        def history(self, period, interval):
+            raise RuntimeError("yfinance is down")
+
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenHistoryTicker)
+
+    with pytest.raises(DataSourceError, match="Yahoo Finance"):
+        yahoo.fetch_history("AAPL", provider=yahoo.SOURCE_YAHOO)
 
 
 class _FakeChartResponse:

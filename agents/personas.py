@@ -274,6 +274,9 @@ _METRIC_LABELS = {
     "annualized_volatility": "Annualized volatility",
     "sharpe_ratio": "Sharpe ratio",
     "historical_var_95": "1-day VaR (95%)",
+    "rsi_14": "RSI (14-day)",
+    "return_1mo": "1-month price return",
+    "technical_sentiment": "Technical sentiment",
 }
 
 # Metrics stored as fractions (0.0325 = 3.25%) — rendered as percentages.
@@ -284,6 +287,7 @@ _PERCENT_METRICS = {
     "payout_ratio",
     "annualized_volatility",
     "historical_var_95",
+    "return_1mo",
 }
 
 
@@ -306,9 +310,22 @@ def build_prompt(ticker: str, metrics: dict) -> str:
         "Base your analysis on only the numbers provided above — do not "
         "invent or assume figures that are not listed (missing values are "
         "marked N/A).",
+        "Write for a serious retail investor who wants substance: interpret "
+        "the numbers, don't just restate them. Explain what each figure you "
+        "cite implies about the business and the price.",
         "Give your verdict in this structure:",
-        "1. What stands out in these numbers through your framework",
-        "2. Key risks or disqualifiers",
-        "3. Verdict: BUY / HOLD / AVOID with a one-paragraph justification",
+        "1. Business quality: what the profitability, margins, and cash "
+        "generation say about this company through your framework",
+        "2. Valuation: is the current price attractive relative to earnings, "
+        "book value, and the DCF intrinsic value (when provided)? Quantify "
+        "the margin of safety or the premium being paid.",
+        "3. Key risks or disqualifiers: what could permanently impair this "
+        "investment, and what in these numbers worries you most",
+        "4. Entry/exit discipline: under what conditions or price behavior "
+        "would you act — accumulate, trim, or walk away — consistent with "
+        "your framework and the technical readings provided",
+        "5. Verdict: BUY / HOLD / AVOID, a conviction score from 1-10, a "
+        "one-paragraph justification, and the single piece of evidence that "
+        "would change your mind",
     ]
     return "\n".join(lines)
