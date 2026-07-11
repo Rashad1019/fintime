@@ -1,7 +1,10 @@
 """Shared Streamlit UI helpers used across pages."""
 
+import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
+from config import INTRADAY_WINDOW_HOURS
 from data import yahoo
 
 _PROVIDER_LABELS = {
@@ -51,3 +54,41 @@ def show_source_banner(source: str, provider: str) -> None:
             "The backup chart API only provides prices — name, market cap, "
             "and fundamentals are unavailable on this provider."
         )
+
+
+def slice_intraday_window(history: pd.DataFrame, period: str) -> pd.DataFrame:
+    """Trim a day's bars down to the last N hours for sub-day periods.
+
+    Yahoo has no 1-hour or 4-hour range, so those periods fetch a full day
+    of intraday bars and slice the tail here.
+    """
+    hours = INTRADAY_WINDOW_HOURS.get(period)
+    if not hours:
+        return history
+    cutoff = history.index.max() - pd.Timedelta(hours=hours)
+    return history[history.index >= cutoff]
+
+
+def render_price_chart(history: pd.DataFrame, chart_type: str) -> None:
+    """Candlestick chart when OHLC is available, line chart otherwise."""
+    has_ohlc = {"Open", "High", "Low"}.issubset(history.columns)
+    if chart_type == "Candles" and has_ohlc:
+        fig = go.Figure(
+            go.Candlestick(
+                x=history.index,
+                open=history["Open"],
+                high=history["High"],
+                low=history["Low"],
+                close=history["Close"],
+            )
+        )
+        fig.update_layout(
+            xaxis_rangeslider_visible=False,
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=420,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        return
+    if chart_type == "Candles" and not has_ohlc:
+        st.caption("Candles unavailable for this data source — showing line chart.")
+    st.line_chart(history["Close"])

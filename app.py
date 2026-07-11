@@ -9,6 +9,7 @@ import streamlit as st
 
 import ui
 from analytics import technicals
+from config import DASHBOARD_PERIODS, HISTORY_PERIODS
 from data import DataSourceError, cache
 
 st.set_page_config(page_title="Fincent", page_icon="📈", layout="wide")
@@ -22,13 +23,20 @@ provider = ui.select_provider()
 
 TECHNICALS_PERIOD = "1y"  # enough daily bars for the 200-day average
 
-ticker = st.text_input("Ticker", value="AAPL").strip().upper()
+col_ticker, col_period, col_chart = st.columns([2, 1, 1])
+ticker = col_ticker.text_input("Ticker", value="AAPL").strip().upper()
+period = col_period.selectbox("Timeframe", DASHBOARD_PERIODS, index=2)
+chart_type = col_chart.radio("Chart", ["Line", "Candles"], horizontal=True)
 if not ticker:
     st.stop()
 
+chart_range, chart_interval = HISTORY_PERIODS[period]
 try:
     with st.spinner(f"Fetching {ticker}..."):
         snapshot = cache.get_snapshot(ticker, provider)
+        chart_history = cache.get_history(
+            ticker, chart_range, chart_interval, provider
+        )
         history = cache.get_history(ticker, TECHNICALS_PERIOD, provider=provider)
 except DataSourceError as exc:
     st.error(str(exc))
@@ -41,6 +49,7 @@ summary = technicals.build_summary(history["Close"])
 verdict = technicals.sentiment(summary)
 
 st.subheader(quote["name"])
+ui.render_price_chart(ui.slice_intraday_window(chart_history, period), chart_type)
 
 # --- What is the sentiment ---
 _SENTIMENT_ICONS = {"Bullish": "🟢", "Neutral": "🟡", "Bearish": "🔴"}
@@ -89,7 +98,9 @@ with exit_col:
 
 st.divider()
 st.caption(
-    "Signals are rule-based readings of standard indicators (RSI, moving "
-    "averages) — informational only, not financial advice. Cross-check with "
-    "the Analytics page (DCF, risk) and the Agents page before acting."
+    "Sentiment, RSI, and the enter/exit signals are computed on one year of "
+    "daily bars regardless of the chart timeframe above. Signals are "
+    "rule-based readings of standard indicators (RSI, moving averages) — "
+    "informational only, not financial advice. Cross-check with the "
+    "Analytics page (DCF, risk) and the Agents page before acting."
 )

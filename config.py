@@ -13,6 +13,7 @@ DCF_YEARS = 5
 # Intraday ranges need intraday bars; Yahoo serves 1m data for ~7 days only.
 HISTORY_PERIODS = {
     "1h": ("1d", "1m"),
+    "4h": ("1d", "5m"),
     "1d": ("1d", "5m"),
     "1wk": ("5d", "15m"),
     "1mo": ("1mo", "1d"),
@@ -23,6 +24,12 @@ HISTORY_PERIODS = {
     "5y": ("5y", "1d"),
 }
 DEFAULT_PERIOD = "1y"
+
+# Sub-day periods share a full-day fetch; slice to the last N hours of bars.
+INTRADAY_WINDOW_HOURS = {"1h": 1, "4h": 4}
+
+# Timeframes offered on the front-page dashboard chart.
+DASHBOARD_PERIODS = ["1h", "4h", "1d", "1wk", "1mo", "1y"]
 
 # Period used for risk metrics (volatility, Sharpe, VaR) — daily bars.
 RISK_HISTORY_PERIOD = "1y"

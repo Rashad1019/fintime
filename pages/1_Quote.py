@@ -1,7 +1,5 @@
 """Quote page: ticker lookup, price chart, key stats, valuation ratios."""
 
-import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 import ui
@@ -33,9 +31,7 @@ except DataSourceError as exc:
     st.error(str(exc))
     st.stop()
 
-if period == "1h":
-    # Yahoo has no 1-hour range; slice the last hour of 1-minute bars.
-    history = history[history.index >= history.index.max() - pd.Timedelta(hours=1)]
+history = ui.slice_intraday_window(history, period)
 
 quote = snapshot["quote"]
 ui.show_source_banner(snapshot["source"], provider)
@@ -46,27 +42,7 @@ metric_cols[0].metric("Price", f"{quote['price']:,.2f} {quote['currency'] or ''}
 metric_cols[1].metric("Market cap", fmt_money(quote["market_cap"]))
 metric_cols[2].metric("Ticker", quote["ticker"])
 
-has_ohlc = {"Open", "High", "Low"}.issubset(history.columns)
-if chart_type == "Candles" and has_ohlc:
-    fig = go.Figure(
-        go.Candlestick(
-            x=history.index,
-            open=history["Open"],
-            high=history["High"],
-            low=history["Low"],
-            close=history["Close"],
-        )
-    )
-    fig.update_layout(
-        xaxis_rangeslider_visible=False,
-        margin=dict(l=0, r=0, t=10, b=0),
-        height=420,
-    )
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    if chart_type == "Candles" and not has_ohlc:
-        st.caption("Candles unavailable for this data source — showing line chart.")
-    st.line_chart(history["Close"])
+ui.render_price_chart(history, chart_type)
 
 st.subheader("Valuation ratios")
 fundamentals = snapshot["fundamentals"]
