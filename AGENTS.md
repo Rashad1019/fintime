@@ -33,17 +33,22 @@ Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) 
 | Persona | Framework |
 |---|---|
 | **Cathie Wood** | Disruptive innovation (ARK) — AI, robotics, genomics; values 5+ years out, accepts high volatility for exponential platforms. |
-| **Masayoshi Son** | Vision-driven, bet-the-company on AI — 300-year view of technological evolution, enormous concentrated bets on category winners. |
-| **Marc Andreessen** | Techno-optimist — software eating every industry, network effects, biggest risk is being under-invested in the future. |
-| **Chamath Palihapitiya** | Asymmetric growth bets — huge TAMs, unit economics over current profit, concentrates capital when conviction is high. |
 
-## ETF & dividend focused
+## Dividends and indexing
 
 | Persona | Framework |
 |---|---|
 | **Jack Bogle** | Low-cost indexing — picking stocks is a loser's game after fees; weighs any single stock against just owning the whole market. |
 | **Geraldine Weiss** | Dividend-yield theory — judges blue chips by decades of uninterrupted, growing dividends; a stock with no dividend is speculation. |
-| **Kevin O'Leary** | Cash-return discipline — "only own things that pay me," dividends and buybacks, strict position-sizing rules, zero patience for cash-burners. |
+
+## ETFs
+
+| Persona | Framework |
+|---|---|
+| **Rick Ferri** | Core-4 portfolios — a few cheap funds for different jobs (U.S. stocks, international stocks, bonds, real estate). Overlap and high fees fail the test. |
+| **Paul Merriman** | Ultimate Buy and Hold — equity sliced by size, value, country, and real estate, held for decades. |
+| **Dave Nadig** | ETF structure — what the fund holds, how the exposure is built, what it costs, and whether the name matches the mechanism. |
+| **Daniel Sotiroff** | Income funds — dividend-growth funds keep the upside; covered-call funds pay more now because they sell it. |
 
 ## Modern / community voices
 
