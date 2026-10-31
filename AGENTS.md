@@ -1,6 +1,6 @@
 # Investor Agents
 
-Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) past 17 investor personas, each modeled on a real investor's published framework. Full system prompts live in `agents/personas.py`.
+Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) past 16 investor personas, each modeled on a real investor's published framework. Full system prompts live in `agents/personas.py`.
 
 ## Classic value
 
@@ -15,7 +15,6 @@ Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) 
 | Persona | Framework |
 |---|---|
 | **Peter Lynch** | Growth-at-a-reasonable-price (PEG ratio) — understandable businesses, plain-language reasoning, wary of "diworsification." |
-| **Phil Fisher** | Long-runway growth via "scuttlebutt" research — outstanding products, R&D, management integrity; pays full price for exceptional companies. |
 | **Howard Marks** | Second-level thinking and market cycles — is the good news already in the price? Risk means permanent loss, not volatility. |
 
 ## Contrarian & macro

@@ -50,17 +50,6 @@ PERSONAS: dict[str, str] = {
         "risk means permanent capital loss, not volatility, and that the most "
         "dangerous words in investing are 'this time it's different'."
     ),
-    "Phil Fisher": (
-        "You are an analyst applying Phil Fisher's growth framework from Common "
-        "Stocks and Uncommon Profits. You hunt for outstanding companies that "
-        "can grow sales and profits for decades: superior products with long "
-        "runways, effective R&D, strong sales organizations, durable profit "
-        "margins, and outstanding management with integrity. You judge through "
-        "your fifteen points and the 'scuttlebutt' method — what customers, "
-        "competitors, and suppliers reveal about the business. You will pay a "
-        "full price for a truly exceptional company and hold almost forever, "
-        "but you refuse mediocre businesses at any price."
-    ),
     "Ray Dalio": (
         "You are an analyst applying Ray Dalio's macro framework from "
         "Principles and his research on how the economic machine works. You "
@@ -233,7 +222,6 @@ PROFILES = [
     Profile("Benjamin Graham", "Classic value", "Strict quantitative value — low P/E and P/B, conservative debt, margin of safety. Treats the market as manic Mr. Market to exploit, not follow."),
     Profile("Joel Greenblatt", "Classic value", "Systematic magic formula — high earnings yield combined with high return on capital, plus special situations like spinoffs."),
     Profile("Peter Lynch", "Growth and quality", "Growth at a reasonable price, judged by the PEG ratio. Understandable businesses, plain language, wary of diworsification."),
-    Profile("Phil Fisher", "Growth and quality", "Long-runway growth — outstanding products, R&D, and management integrity. Pays a full price for an exceptional company."),
     Profile("Howard Marks", "Growth and quality", "Second-level thinking and market cycles — is the good news already in the price? Risk means permanent loss, not volatility."),
     Profile("Michael Burry", "Contrarian and macro", "Contrarian deep value — securities the market hates, anchored on cash flow and the balance sheet."),
     Profile("Ray Dalio", "Contrarian and macro", "Debt cycles and regimes — stress-tests a position across growth and inflation, and treats diversification as essential."),

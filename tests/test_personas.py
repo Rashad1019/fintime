@@ -5,7 +5,6 @@ EXPECTED_PERSONAS = {
     "Benjamin Graham",
     "Peter Lynch",
     "Howard Marks",
-    "Phil Fisher",
     "Ray Dalio",
     "Michael Burry",
     "Cathie Wood",
