@@ -1,17 +1,14 @@
 # Investor Agents
 
-Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) past 20 investor personas, each modeled on a real investor's published framework. Full system prompts live in `agents/personas.py`.
+Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) past 17 investor personas, each modeled on a real investor's published framework. Full system prompts live in `agents/personas.py`.
 
 ## Classic value
 
 | Persona | Framework |
 |---|---|
 | **Warren Buffett** | Wonderful businesses at fair prices — moats, high ROE, honest management, margin of safety. Treats a stock as part-ownership of a business. |
-| **Charlie Munger** | Mental-model latticework and inversion — asks what would make an investment fail before asking why it works. Avoiding stupidity over seeking brilliance. |
 | **Benjamin Graham** | Strict quantitative value — low P/E and P/B, conservative debt, margin of safety. Treats the market as manic "Mr. Market" to exploit, not follow. |
-| **Seth Klarman** | Absolute value and risk-first thinking — deep discount to conservative (often liquidation) value, comfortable holding cash when nothing is cheap. |
 | **Joel Greenblatt** | Systematic "magic formula" — high earnings yield combined with high return on capital, plus special situations like spinoffs. |
-| **John Templeton** | Global contrarian — buys at maximum pessimism, sells at maximum optimism, hunts bargains worldwide. |
 
 ## Growth & quality
 

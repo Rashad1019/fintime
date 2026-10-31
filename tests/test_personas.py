@@ -2,17 +2,14 @@ from agents.personas import PERSONAS, PROFILE_BY_NAME, build_prompt
 
 EXPECTED_PERSONAS = {
     "Warren Buffett",
-    "Charlie Munger",
     "Benjamin Graham",
     "Peter Lynch",
-    "Seth Klarman",
     "Howard Marks",
     "Phil Fisher",
     "Ray Dalio",
     "Michael Burry",
     "Cathie Wood",
     "Joel Greenblatt",
-    "John Templeton",
     "Jack Bogle",
     "Geraldine Weiss",
     "Rick Ferri",

@@ -47,7 +47,7 @@ def _show_comparison(results: list[dict]) -> None:
 ui.apply_theme()
 ui.page_header(
     "Investor agents",
-    "Framework studio / 20 perspectives",
+    "Framework studio / 17 perspectives",
     "Run real computed ratios, DCF, risk, and technicals through distinct investor frameworks.",
 )
 provider = ui.select_provider()
