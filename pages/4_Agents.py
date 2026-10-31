@@ -7,6 +7,7 @@ import ui
 from agents import openrouter_client
 from agents.metrics import assemble_metrics
 from agents.personas import PERSONAS, PROFILE_BY_NAME, build_prompt, profiles_by_group
+from agents.recommendations import CANDIDATES, pick_replacements, slammed
 from agents.verdicts import parse_verdict
 from config import (
     DCF_DISCOUNT,
@@ -28,6 +29,30 @@ def _history_or_empty(symbol: str, period: str, data_provider: str) -> pd.Series
     if frame is None or frame.empty or "Close" not in frame.columns:
         return pd.Series(dtype=float)
     return frame["Close"]
+
+
+def _show_replacements(symbol: str, data_provider: str, results: list[dict]) -> None:
+    try:
+        snapshot = cache.get_snapshot(symbol, data_provider)
+    except DataSourceError:
+        return
+    quote = (snapshot or {}).get("quote") or {}
+    fetched = cache.get_snapshots(tuple(sorted(CANDIDATES)), data_provider)
+    quotes = {
+        candidate: (snap or {}).get("quote")
+        for candidate, snap in fetched.items()
+        if snap and snap.get("quote")
+    }
+    picks = pick_replacements(symbol, quote.get("price"), quote.get("name"), quotes)
+    if not picks:
+        return
+    title = f"Instead of {symbol}" if slammed(results) else f"Two ideas next to {symbol}"
+    st.subheader(title)
+    columns = st.columns(len(picks))
+    labels = {"role": "In its place", "price": "Close in price"}
+    for column, pick in zip(columns, picks):
+        column.markdown(f"**{labels[pick['slot']]} · {pick['ticker']}**")
+        column.caption(pick["reason"])
 
 
 def _show_comparison(results: list[dict]) -> None:
@@ -130,6 +155,7 @@ if not saved:
 
 st.caption(f"Saved run · {saved['created_at']}")
 _show_comparison(saved["results"])
+_show_replacements(ticker, provider, saved["results"])
 with st.expander("Numbers given to the personas", expanded=False):
     st.code(saved["prompt"])
 st.caption(
