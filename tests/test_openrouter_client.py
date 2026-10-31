@@ -58,10 +58,33 @@ def test_rotates_past_removed_model_on_404(monkeypatch):
 
 
 def test_all_models_unavailable_raises(monkeypatch):
-    count = len(openrouter_client.FREE_MODEL_FALLBACKS)
+    count = len(openrouter_client._models_to_try())
     _patch_post(monkeypatch, [FakeResponse(429) for _ in range(count)])
-    with pytest.raises(OpenRouterError, match="unavailable"):
+    with pytest.raises(OpenRouterError, match="paid fallback failed"):
         ask("system", "user")
+
+
+def test_paid_model_is_used_after_free_models_fail(monkeypatch):
+    free_count = len(openrouter_client.FREE_MODEL_FALLBACKS)
+    models_called = _patch_post(
+        monkeypatch,
+        [FakeResponse(404) for _ in range(free_count)]
+        + [FakeResponse(200, content="paid reply")],
+    )
+    assert ask("system", "user") == "paid reply"
+    assert models_called[-1] == openrouter_client.PAID_MODEL_FALLBACK
+    assert models_called[:-1] == openrouter_client.FREE_MODEL_FALLBACKS
+
+
+def test_empty_paid_model_disables_fallback(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_PAID_MODEL", "")
+    count = len(openrouter_client.FREE_MODEL_FALLBACKS)
+    models_called = _patch_post(
+        monkeypatch, [FakeResponse(429) for _ in range(count)]
+    )
+    with pytest.raises(OpenRouterError, match="currently unavailable"):
+        ask("system", "user")
+    assert openrouter_client.PAID_MODEL_FALLBACK not in models_called
 
 
 def test_non_retryable_error_raises_immediately(monkeypatch):

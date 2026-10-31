@@ -2,10 +2,12 @@
 
 Environment (from the shell or a local .env file — never hardcode the key):
   OPENROUTER_API_KEY  required.
-  OPENROUTER_MODEL    optional — use exactly this one model.
-  OPENROUTER_MODELS   optional — comma-separated rotation list, overriding
-                      FREE_MODEL_FALLBACKS. Free-tier models come and go, so
-                      this lets you refresh the list without touching code.
+  OPENROUTER_MODEL       optional — use exactly this one model. No paid fallback.
+  OPENROUTER_MODELS      optional — comma-separated rotation list, overriding
+                         FREE_MODEL_FALLBACKS. Free-tier models come and go, so
+                         this lets you refresh the list without touching code.
+  OPENROUTER_PAID_MODEL  optional — model to try after every free model fails.
+                         Defaults to PAID_MODEL_FALLBACK. Set it empty to skip.
 """
 
 import logging
@@ -32,11 +34,21 @@ FREE_MODEL_FALLBACKS = [
     "google/gemma-4-26b-a4b-it:free",
     "openrouter/free",
 ]
+# Used only after the free rotation is exhausted, so credits are spent on a
+# persona run that would otherwise fail. Gemma 4 31B is the paid form of the
+# first free model: about $0.20 / $0.40 per million tokens.
+PAID_MODEL_FALLBACK = "google/gemma-4-31b-it"
 _RETRYABLE_STATUS_CODES = {404, 429}
 
 
 class OpenRouterError(Exception):
     """Raised when the OpenRouter call cannot be completed."""
+
+
+def _paid_model() -> str | None:
+    if "OPENROUTER_PAID_MODEL" in os.environ:
+        return os.environ["OPENROUTER_PAID_MODEL"].strip() or None
+    return PAID_MODEL_FALLBACK
 
 
 def _models_to_try() -> list[str]:
@@ -45,7 +57,11 @@ def _models_to_try() -> list[str]:
         return [single]
     env_list = os.getenv("OPENROUTER_MODELS", "")
     models = [model.strip() for model in env_list.split(",") if model.strip()]
-    return models or FREE_MODEL_FALLBACKS
+    models = models or list(FREE_MODEL_FALLBACKS)
+    paid = _paid_model()
+    if paid and paid not in models:
+        models.append(paid)
+    return models
 
 
 def _call(api_key: str, model: str, system_prompt: str, user_prompt: str):
@@ -66,8 +82,9 @@ def _call(api_key: str, model: str, system_prompt: str, user_prompt: str):
 def ask(system_prompt: str, user_prompt: str) -> str:
     """Send one system+user exchange to OpenRouter and return the reply text.
 
-    Models are tried in order (see _models_to_try) until one is not
-    rate-limited or removed.
+    Free models are tried in order. If every one is rate-limited or removed,
+    the paid fallback is tried once so the run can spend credits instead of
+    failing. OPENROUTER_MODEL skips that fallback.
     """
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -100,8 +117,17 @@ def ask(system_prompt: str, user_prompt: str) -> str:
                 f"Unexpected OpenRouter response shape: {response.text[:300]}"
             ) from exc
 
-    raise OpenRouterError(
-        "All models in the rotation are currently unavailable — wait a minute and "
-        "retry, or set OPENROUTER_MODELS in .env to a fresh list. "
-        f"Last error: {last_error}"
-    )
+    paid = _paid_model()
+    tried_paid = paid and paid in _models_to_try() and not os.getenv("OPENROUTER_MODEL")
+    if tried_paid:
+        summary = (
+            "Every free model failed, and the paid fallback failed too. "
+            "Check OpenRouter credits, or set OPENROUTER_PAID_MODEL to a model "
+            "your key can call."
+        )
+    else:
+        summary = (
+            "All models in the rotation are currently unavailable — wait a minute "
+            "and retry, or set OPENROUTER_MODELS in .env to a fresh list."
+        )
+    raise OpenRouterError(f"{summary} Last error: {last_error}")
