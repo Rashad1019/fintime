@@ -23,11 +23,14 @@ REQUEST_TIMEOUT_SECONDS = 120
 
 # Free-tier models get rate-limited upstream minute to minute, so try these
 # in order and move to the next on 429 (rate-limited) or 404 (tier removed).
+# Named free models first. openrouter/free is last: it routes to whatever
+# free model is still up when a specific slug has been removed.
 FREE_MODEL_FALLBACKS = [
-    "openai/gpt-oss-120b:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen3-next-80b-a3b-instruct:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "thinkingmachines/inkling:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "openrouter/free",
 ]
 _RETRYABLE_STATUS_CODES = {404, 429}
 
