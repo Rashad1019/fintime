@@ -2,9 +2,18 @@ from analytics.ratios import (
     debt_to_equity,
     pb_ratio,
     pe_ratio,
+    peg_ratio,
     profit_margin,
     roe,
 )
+
+
+def test_peg_ratio_uses_growth_in_percentage_points():
+    assert peg_ratio(pe=20.0, earnings_growth=0.10) == 2.0
+
+
+def test_peg_ratio_negative_growth_returns_none():
+    assert peg_ratio(pe=20.0, earnings_growth=-0.05) is None
 
 
 def test_pe_ratio_basic():

@@ -1,4 +1,4 @@
-from agents.personas import PERSONAS, build_prompt
+from agents.personas import PERSONAS, PROFILE_BY_NAME, build_prompt
 
 EXPECTED_PERSONAS = {
     "Warren Buffett",
@@ -60,6 +60,19 @@ def test_build_prompt_shows_na_for_missing_metrics():
 def test_build_prompt_instructs_grounding_in_provided_numbers():
     prompt = build_prompt("MSFT", SAMPLE_METRICS)
     assert "only the numbers provided" in prompt.lower()
+
+
+def test_every_persona_has_a_public_profile():
+    assert set(PROFILE_BY_NAME) == set(PERSONAS)
+    for profile in PROFILE_BY_NAME.values():
+        assert profile.group
+        assert len(profile.summary) > 40
+
+
+def test_build_prompt_requires_a_parseable_verdict_line():
+    prompt = build_prompt("AAPL", SAMPLE_METRICS)
+    assert "VERDICT: BUY | conviction 7" in prompt
+    assert "were not provided" in prompt
 
 
 def test_build_prompt_renders_percent_metrics_as_percentages():

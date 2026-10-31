@@ -8,6 +8,9 @@ DCF_GROWTH = 0.08
 DCF_DISCOUNT = 0.10
 DCF_TERMINAL_GROWTH = 0.025
 DCF_YEARS = 5
+# Second case for the agent prompt: slower growth and a higher required return.
+DCF_SLOW_GROWTH = 0.04
+DCF_STRESS_DISCOUNT = 0.12
 
 # Chart periods offered in the UI: label -> (Yahoo chart range, bar interval).
 # Intraday ranges need intraday bars; Yahoo serves 1m data for ~7 days only.

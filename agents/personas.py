@@ -256,6 +256,52 @@ PERSONAS: dict[str, str] = {
     ),
 }
 
+
+class Profile:
+    """Short public description of a persona, shown in the Agents page."""
+
+    def __init__(self, name: str, group: str, summary: str):
+        self.name = name
+        self.group = group
+        self.summary = summary
+
+
+PROFILES = [
+    Profile("Warren Buffett", "Classic value", "Wonderful businesses at fair prices — moats, high ROE, honest management, margin of safety. Treats a stock as part-ownership of a business."),
+    Profile("Charlie Munger", "Classic value", "Mental-model latticework and inversion — asks what would make an investment fail before asking why it works. Avoiding stupidity over seeking brilliance."),
+    Profile("Benjamin Graham", "Classic value", "Strict quantitative value — low P/E and P/B, conservative debt, margin of safety. Treats the market as manic Mr. Market to exploit, not follow."),
+    Profile("Seth Klarman", "Classic value", "Absolute value and risk-first thinking — deep discount to conservative value, comfortable holding cash when nothing is cheap."),
+    Profile("Joel Greenblatt", "Classic value", "Systematic magic formula — high earnings yield combined with high return on capital, plus special situations like spinoffs."),
+    Profile("John Templeton", "Classic value", "Global contrarian — buys at maximum pessimism, sells at maximum optimism, hunts bargains worldwide."),
+    Profile("Peter Lynch", "Growth and quality", "Growth at a reasonable price, judged by the PEG ratio. Understandable businesses, plain language, wary of diworsification."),
+    Profile("Phil Fisher", "Growth and quality", "Long-runway growth — outstanding products, R&D, and management integrity. Pays a full price for an exceptional company."),
+    Profile("Howard Marks", "Growth and quality", "Second-level thinking and market cycles — is the good news already in the price? Risk means permanent loss, not volatility."),
+    Profile("Michael Burry", "Contrarian and macro", "Contrarian deep value — securities the market hates, anchored on cash flow and the balance sheet."),
+    Profile("Ray Dalio", "Contrarian and macro", "Debt cycles and regimes — stress-tests a position across growth and inflation, and treats diversification as essential."),
+    Profile("Cathie Wood", "Tech and disruptive growth", "Disruptive innovation — AI, robotics, genomics. Values the business five or more years out and accepts high volatility."),
+    Profile("Masayoshi Son", "Tech and disruptive growth", "A very long view of technology, concentrated on category winners riding the AI wave."),
+    Profile("Marc Andreessen", "Tech and disruptive growth", "Software and network effects. The biggest risk is being under-invested in the future."),
+    Profile("Chamath Palihapitiya", "Tech and disruptive growth", "Asymmetric bets on huge markets. Unit economics and growth matter more than current profit."),
+    Profile("Jack Bogle", "Dividends and indexing", "Low-cost indexing. Weighs any single stock against simply owning the whole market."),
+    Profile("Geraldine Weiss", "Dividends and indexing", "Dividend-yield theory. Judges blue chips by a long, growing dividend and where today's yield sits in its own history."),
+    Profile("Kevin O'Leary", "Dividends and indexing", "Only own what pays you. Dividends, buybacks, and no patience for businesses that burn cash."),
+    Profile("Ian Dunlap", "Modern voices", "Two elite tech companies and two broad index funds, held for five to ten years. Most investors lose by owning too many mediocre positions."),
+    Profile("Wall Street Trapper", "Modern voices", "Ownership over consumption. Own the companies people spend with, and build the position one share at a time."),
+]
+
+PROFILE_BY_NAME = {profile.name: profile for profile in PROFILES}
+
+
+def profiles_by_group() -> list[tuple[str, list[Profile]]]:
+    """Profiles in display order, grouped by field."""
+    groups: list[tuple[str, list[Profile]]] = []
+    for profile in PROFILES:
+        if not groups or groups[-1][0] != profile.group:
+            groups.append((profile.group, []))
+        groups[-1][1].append(profile)
+    return groups
+
+
 _METRIC_LABELS = {
     "price": "Current price",
     "market_cap": "Market cap",
@@ -270,7 +316,14 @@ _METRIC_LABELS = {
     "net_income": "Net income (TTM)",
     "free_cash_flow": "Free cash flow (TTM)",
     "eps": "EPS (TTM)",
-    "dcf_value_per_share": "DCF intrinsic value per share",
+    "earnings_growth": "Earnings growth",
+    "peg_ratio": "PEG ratio",
+    "dcf_value_per_share": "DCF value per share (base case)",
+    "dcf_conservative_per_share": "DCF value per share (slow-growth case)",
+    "dividend_yield_low": "Dividend yield, historical low",
+    "dividend_yield_high": "Dividend yield, historical high",
+    "ten_year_yield": "10-year Treasury yield",
+    "inflation_yoy": "Inflation, year over year",
     "annualized_volatility": "Annualized volatility",
     "sharpe_ratio": "Sharpe ratio",
     "historical_var_95": "1-day VaR (95%)",
@@ -285,6 +338,11 @@ _PERCENT_METRICS = {
     "profit_margin",
     "dividend_yield",
     "payout_ratio",
+    "earnings_growth",
+    "dividend_yield_low",
+    "dividend_yield_high",
+    "ten_year_yield",
+    "inflation_yoy",
     "annualized_volatility",
     "historical_var_95",
     "return_1mo",
@@ -327,5 +385,9 @@ def build_prompt(ticker: str, metrics: dict) -> str:
         "5. Verdict: BUY / HOLD / AVOID, a conviction score from 1-10, a "
         "one-paragraph justification, and the single piece of evidence that "
         "would change your mind",
+        "Management character, customers, and competitors are not in this "
+        "data. If your framework needs them, say they were not provided.",
+        "End with one line and nothing after it, in exactly this form: "
+        "VERDICT: BUY | conviction 7",
     ]
     return "\n".join(lines)

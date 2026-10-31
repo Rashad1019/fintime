@@ -35,6 +35,17 @@ def debt_to_equity(
     return total_debt / shareholder_equity
 
 
+def peg_ratio(pe: float | None, earnings_growth: float | None) -> float | None:
+    """P/E divided by the earnings growth rate in percentage points.
+
+    earnings_growth is a fraction (0.15 = 15%). Undefined when growth is
+    missing, zero, or negative — a PEG ratio is not meaningful then.
+    """
+    if pe is None or earnings_growth is None or earnings_growth <= 0:
+        return None
+    return pe / (earnings_growth * 100)
+
+
 def profit_margin(net_income: float | None, revenue: float | None) -> float | None:
     """Net profit margin. Undefined for zero or negative revenue."""
     if net_income is None or revenue is None or revenue <= 0:

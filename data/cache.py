@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import streamlit as st
 
-from data import DataSourceError, yahoo
+from data import DataSourceError, macro, yahoo
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,18 @@ def get_history(
 ) -> pd.DataFrame:
     """Cached OHLC prices."""
     return yahoo.fetch_history(ticker, period, interval, provider)
+
+
+@st.cache_data(ttl=HISTORY_TTL_SECONDS, show_spinner=False)
+def get_dividends(ticker: str) -> pd.Series:
+    """Cached cash dividends. Empty when the source has none."""
+    return yahoo.fetch_dividends(ticker)
+
+
+@st.cache_data(ttl=60 * 60 * 12, show_spinner=False)
+def get_macro() -> dict:
+    """Cached 10-year yield and CPI inflation. Missing series are None."""
+    return macro.fetch_macro()
 
 
 def _snapshot_or_none(ticker: str, provider: str) -> dict | None:

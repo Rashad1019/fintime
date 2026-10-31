@@ -12,6 +12,7 @@ import pandas as pd
 import yfinance as yf
 
 from data import DataSourceError, fallback_source, fmp_source
+from data.normalize import growth_fraction
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ def _fundamentals_from_info(info: dict, price: float) -> dict:
         "revenue": info.get("totalRevenue"),
         "free_cash_flow": info.get("freeCashflow"),
         "shares_outstanding": shares_outstanding,
+        "earnings_growth": growth_fraction(info.get("earningsGrowth")),
     }
 
 
@@ -99,6 +101,18 @@ def _snapshot_from_chart_api(ticker: str) -> dict:
         "fundamentals": None,
         "source": SOURCE_FALLBACK,
     }
+
+
+def fetch_dividends(ticker: str) -> pd.Series:
+    """Cash dividends from Yahoo, or an empty series when none are available."""
+    try:
+        series = yf.Ticker(ticker).dividends
+    except Exception:
+        logger.warning("Dividend fetch failed for %s", ticker, exc_info=True)
+        return pd.Series(dtype=float)
+    if series is None or len(series) == 0:
+        return pd.Series(dtype=float)
+    return series
 
 
 def fetch_snapshot(ticker: str, provider: str = PROVIDER_AUTO) -> dict:

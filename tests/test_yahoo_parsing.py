@@ -20,6 +20,18 @@ FULL_INFO = {
 }
 
 
+def test_fundamentals_keep_decimal_earnings_growth():
+    info = dict(FULL_INFO, earningsGrowth=0.15)
+    fundamentals = yahoo._fundamentals_from_info(info, 150.0)
+    assert fundamentals["earnings_growth"] == pytest.approx(0.15)
+
+
+def test_fundamentals_convert_percentage_point_earnings_growth():
+    info = dict(FULL_INFO, earningsGrowth=15.0)
+    fundamentals = yahoo._fundamentals_from_info(info, 150.0)
+    assert fundamentals["earnings_growth"] == pytest.approx(0.15)
+
+
 def test_fundamentals_normalizes_dividend_yield_to_fraction():
     fundamentals = yahoo._fundamentals_from_info(FULL_INFO, 150.0)
     assert fundamentals["dividend_yield"] == pytest.approx(0.0325)

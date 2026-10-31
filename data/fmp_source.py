@@ -97,6 +97,17 @@ def _first(path: str, symbol: str, **params) -> dict:
     return payload[0]
 
 
+def _earnings_growth(income_rows: list) -> float | None:
+    """Year-over-year EPS growth from two income statements, newest first."""
+    if len(income_rows) < 2:
+        return None
+    newer = income_rows[0].get("eps")
+    older = income_rows[1].get("eps")
+    if newer is None or older in (None, 0):
+        return None
+    return (float(newer) - float(older)) / abs(float(older))
+
+
 def get_snapshot(ticker: str) -> dict:
     """Quote + fundamentals from FMP, shaped like data.yahoo.fetch_snapshot's dict.
 
@@ -106,7 +117,10 @@ def get_snapshot(ticker: str) -> dict:
     ticker = ticker.upper()
     try:
         profile = _first("profile", ticker)
-        income = _first("income-statement", ticker, limit=1)
+        income_rows = _get("income-statement", {"symbol": ticker, "limit": 2})
+        if not income_rows:
+            raise DataSourceError(f"FMP has no income-statement data for '{ticker}'")
+        income = income_rows[0]
         balance = _first("balance-sheet-statement", ticker, limit=1)
         cash_flow = _first("cash-flow-statement", ticker, limit=1)
         ratios = _first("ratios", ticker, limit=1)
@@ -136,6 +150,7 @@ def get_snapshot(ticker: str) -> dict:
             "revenue": income.get("revenue"),
             "free_cash_flow": cash_flow.get("freeCashFlow"),
             "shares_outstanding": income.get("weightedAverageShsOut"),
+            "earnings_growth": _earnings_growth(income_rows),
         }
     except DataSourceError:
         raise
