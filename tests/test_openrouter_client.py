@@ -1,6 +1,7 @@
 import json
 
 import pytest
+import requests
 
 from agents import openrouter_client
 from agents.openrouter_client import OpenRouterError, ask
@@ -9,20 +10,29 @@ from agents.openrouter_client import OpenRouterError, ask
 class FakeResponse:
     def __init__(self, status_code, content="ok", raw_text=""):
         self.status_code = status_code
-        self._content = content
-        self.text = raw_text or json.dumps({"error": "fake"})
+        reply = {"choices": [{"message": {"content": content}}]}
+        self._body = raw_text or json.dumps(reply if status_code == 200 else {"error": "fake"})
 
-    def json(self):
-        return {"choices": [{"message": {"content": self._content}}]}
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def iter_content(self, chunk_size):
+        yield self._body.encode()
 
 
 def _patch_post(monkeypatch, responses):
     """Queue fake responses; record which model each call requested."""
     models_called = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, stream=None):
         models_called.append(json["model"])
-        return responses.pop(0)
+        response = responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     monkeypatch.setattr(openrouter_client.requests, "post", fake_post)
     return models_called
@@ -108,3 +118,42 @@ def test_openrouter_models_env_overrides_rotation_list(monkeypatch):
     )
     assert ask("system", "user") == "reply"
     assert models_called == ["a/one:free", "b/two:free"]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        FakeResponse(500),
+        FakeResponse(503),
+        requests.Timeout("too slow"),
+        requests.ConnectionError("dropped"),
+        FakeResponse(200, content=None),
+        FakeResponse(200, content="  "),
+        FakeResponse(200, raw_text='{"error": {"code": 429}}'),
+    ],
+)
+def test_rotates_past_a_model_that_fails(monkeypatch, failure):
+    models_called = _patch_post(monkeypatch, [failure, FakeResponse(200, content="reply")])
+    assert ask("system", "user") == "reply"
+    assert len(models_called) == 2
+
+
+def test_a_model_sending_keep_alive_bytes_is_cut_off_at_the_deadline(monkeypatch):
+    class Dripping(FakeResponse):
+        def iter_content(self, chunk_size):
+            while True:
+                yield b" "
+
+    monkeypatch.setattr(openrouter_client, "MODEL_DEADLINE_SECONDS", 0.01)
+    models_called = _patch_post(
+        monkeypatch, [Dripping(200), FakeResponse(200, content="reply")]
+    )
+    assert ask("system", "user") == "reply"
+    assert len(models_called) == 2
+
+
+def test_a_long_rotation_jumps_to_the_last_model(monkeypatch):
+    monkeypatch.setattr(openrouter_client, "ROTATION_SECONDS", -1)
+    models_called = _patch_post(monkeypatch, [FakeResponse(200, content="reply")])
+    assert ask("system", "user") == "reply"
+    assert models_called == [openrouter_client.PAID_MODEL_FALLBACK]

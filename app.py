@@ -4,24 +4,25 @@ One page for someone who just heard about a stock or fund: what it is, how it
 has done, whether now looks like a good entry, and what investors would say.
 """
 
-import pandas as pd
 import streamlit as st
 
 import persona_panel
 import ui
-from agents.metrics import assemble_metrics
 from analytics import technicals
 from config import DEFAULT_PERIOD, HISTORY_PERIODS, RISK_HISTORY_PERIOD
 from data import DataSourceError, cache, yahoo
 from formatting import escape_dollars, fmt_money, fmt_pct, fmt_ratio
 
-st.set_page_config(
-    page_title="Fincent",
-    page_icon="📈",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="Fincent", page_icon="📈", layout="wide")
 ui.apply_theme()
-ui.home_header()
+
+ui.page_header(
+    "Read the market.\nKnow the business.",
+    "Fincent / independent market intelligence",
+    "Price action, intrinsic value, risk, and sixteen investor frameworks — brought into one disciplined research view.",
+    hero=True,
+)
+provider = ui.select_provider()
 
 _MOOD_ICONS = {"Bullish": "🟢", "Neutral": "🟡", "Bearish": "🔴"}
 _ENTRY_ICONS = {
@@ -30,14 +31,6 @@ _ENTRY_ICONS = {
     "No clear signal": "🟡",
     "Wait": "🔴",
 }
-
-
-def _raw_closes(symbol: str) -> pd.Series | None:
-    """Unadjusted closes for yield history, or None when they can't be fetched."""
-    try:
-        return cache.get_history(symbol, "5y", adjusted=False)["Close"]
-    except DataSourceError:
-        return None
 
 
 def _key_numbers(metrics: dict, profile: dict, is_fund: bool) -> list[tuple[str, str]]:
@@ -61,16 +54,14 @@ def _key_numbers(metrics: dict, profile: dict, is_fund: bool) -> list[tuple[str,
     return [(label, render(value)) for label, value, render in rows if value is not None]
 
 
-ticker = st.text_input(
-    "Enter a stock or fund ticker", value="IVV", placeholder="e.g. IVV, VOO, AAPL"
-).strip().upper()
+ticker = ui.ticker_input("Enter a stock or fund ticker")
 if not ticker:
     st.stop()
 
 try:
     with st.spinner(f"Looking up {ticker}..."):
-        snapshot = cache.get_snapshot(ticker)
-        risk_history = cache.get_history(ticker, RISK_HISTORY_PERIOD)
+        snapshot = cache.get_snapshot(ticker, provider)
+        risk_history = cache.get_history(ticker, RISK_HISTORY_PERIOD, provider=provider)
         profile = cache.get_profile(ticker)
 except DataSourceError:
     st.error(f"We couldn't find {ticker}. Check the symbol and try again.")
@@ -79,7 +70,7 @@ except DataSourceError:
 quote = snapshot["quote"]
 fundamentals = yahoo.fundamentals_or_price(snapshot)
 is_fund = bool(fundamentals.get("is_fund"))
-ui.ticker_title(quote, ticker, profile)
+ui.ticker_title(quote, ticker, profile, is_fund)
 
 st.subheader("What it is")
 about_slot = st.empty()
@@ -95,7 +86,7 @@ period = st.radio(
 )
 chart_range, chart_interval = HISTORY_PERIODS[period]
 try:
-    history = cache.get_history(ticker, chart_range, chart_interval)
+    history = cache.get_history(ticker, chart_range, chart_interval, provider)
 except DataSourceError:
     st.warning(f"No price chart for this timeframe. Showing {RISK_HISTORY_PERIOD} instead.")
     period = "1 year"
@@ -124,13 +115,7 @@ with st.expander("How we got this"):
     )
 st.caption("Information only, not financial advice.")
 
-metrics = assemble_metrics(
-    fundamentals,
-    risk_history["Close"],
-    cache.get_dividends(ticker),
-    cache.get_macro(),
-    dividend_prices=_raw_closes(ticker),
-)
+metrics = persona_panel.metrics_for(ticker, fundamentals, risk_history["Close"], provider)
 numbers = _key_numbers(metrics, profile, is_fund)
 if numbers:
     st.subheader("Key numbers")
@@ -145,7 +130,4 @@ with about_slot.container():
     if written_by_ai:
         st.caption("Written by AI from public fund and company information.")
 
-persona_panel.render(ticker, metrics, quote, is_fund)
-
-st.divider()
-st.page_link("pages/3_Analytics.py", label="Want to go deeper? Try your own valuation")
+persona_panel.render(ticker, metrics, quote, is_fund, provider)

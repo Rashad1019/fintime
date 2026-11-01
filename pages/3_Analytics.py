@@ -23,7 +23,7 @@ ui.page_header(
 )
 provider = ui.select_provider()
 
-ticker = st.text_input("Ticker", value="AAPL").strip().upper()
+ticker = ui.ticker_input()
 if not ticker:
     st.stop()
 
