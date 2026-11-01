@@ -26,8 +26,6 @@ from storage import db
 logger = logging.getLogger(__name__)
 
 _MAX_PARALLEL_ASKS = 8
-_FUND_DEFAULTS = {"Rick Ferri", "Paul Merriman", "Dave Nadig", "Daniel Sotiroff"}
-_STOCK_DEFAULTS = {"Warren Buffett", "Peter Lynch", "Cathie Wood", "Ian Dunlap"}
 
 
 def metrics_for(ticker: str, fundamentals: dict, closes: pd.Series, provider: str) -> dict:
@@ -49,23 +47,29 @@ def _raw_closes(symbol: str, provider: str) -> pd.Series | None:
         return None
 
 
-def show_profiles(expanded: bool) -> None:
-    with st.expander("Who these personas are", expanded=expanded):
+def show_profiles() -> None:
+    with st.expander("Who these personas are"):
         for group, profiles in profiles_by_group():
             st.markdown(f"**{group}**")
             for profile in profiles:
                 st.markdown(f"**{profile.name}** — {profile.summary}")
 
 
-def render(ticker: str, metrics: dict, quote: dict, is_fund: bool, provider: str) -> None:
+def render(ticker: str, metrics: dict, quote: dict) -> None:
     st.subheader("What the investors would say")
     st.caption(
         "AI personas modeled on how famous investors think, each given the "
         "real numbers on this page. These are not the actual people, and this "
         "is not financial advice."
     )
-    show_profiles(expanded=False)
-    selected = _pick_personas(is_fund)
+    show_profiles()
+    selected = st.multiselect(
+        "Choose your investors",
+        [profile.name for _, profiles in profiles_by_group() for profile in profiles],
+        format_func=_picker_label,
+        placeholder="Choose one or more",
+        key="personas",
+    )
     if st.button(f"Ask them about {ticker}", type="primary", disabled=not selected):
         _run(ticker, metrics, selected)
 
@@ -74,38 +78,37 @@ def render(ticker: str, metrics: dict, quote: dict, is_fund: bool, provider: str
         _show_run(ticker, saved, quote)
 
 
-def _pick_personas(is_fund: bool) -> list[str]:
-    defaults = _FUND_DEFAULTS if is_fund else _STOCK_DEFAULTS
-    selected = []
-    for group, profiles in profiles_by_group():
-        names = [profile.name for profile in profiles]
-        selected += st.pills(
-            group,
-            names,
-            selection_mode="multi",
-            default=[name for name in names if name in defaults],
-            key=f"personas_{'fund' if is_fund else 'stock'}_{group}",
-        )
-    return selected
+def _picker_label(name: str) -> str:
+    return f"{name} · {PROFILE_BY_NAME[name].group}"
 
 
 def _run(ticker: str, metrics: dict, names: list[str]) -> None:
     prompt = build_prompt(ticker, metrics)
-    progress = st.progress(0.0, text=f"Asking {len(names)} investors...")
     replies = {}
-    # Workers call only pure agent code, and each ask ends at its own deadline.
-    with ThreadPoolExecutor(max_workers=_MAX_PARALLEL_ASKS) as pool:
-        futures = {pool.submit(_ask, name, prompt): name for name in names}
-        for finished in as_completed(futures):
-            replies[futures[finished]] = finished.result()
-            progress.progress(
-                len(replies) / len(names),
-                text=f"{len(replies)} of {len(names)} investors have answered",
-            )
-    progress.empty()
-    results = [replies[name] for name in names]
-    if any(result["reply"] for result in results):
-        db.save_agent_run(ticker, prompt, results)
+    # The toast shows wherever the viewer has scrolled to.
+    st.toast(f"Asking {len(names)} about {ticker}...", icon="⏳")
+    with st.status(f"Asking about {ticker}. This can take a minute or two...", expanded=True) as status:
+        lines = {name: st.empty() for name in names}
+        for name, line in lines.items():
+            line.markdown(f"⏳ {name} is reading the numbers...")
+        # Workers call only pure agent code, and each ask ends at its own deadline.
+        with ThreadPoolExecutor(max_workers=_MAX_PARALLEL_ASKS) as pool:
+            futures = {pool.submit(_ask, name, prompt): name for name in names}
+            for finished in as_completed(futures):
+                name = futures[finished]
+                replies[name] = finished.result()
+                done = f"✅ {name} has answered" if replies[name]["reply"] else f"⚠️ {name} could not be reached"
+                lines[name].markdown(done)
+                status.update(label=f"{len(replies)} of {len(names)} answered...", expanded=True)
+        answered = sum(1 for result in replies.values() if result["reply"])
+        status.update(
+            label=f"{answered} of {len(names)} answered",
+            state="complete" if answered else "error",
+            expanded=not answered,
+        )
+    if answered:
+        db.save_agent_run(ticker, prompt, [replies[name] for name in names])
+        st.toast(f"{answered} of {len(names)} answered", icon="✅")
     else:
         st.error("The investors could not be reached right now. Try again in a minute.")
 

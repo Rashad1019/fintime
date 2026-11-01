@@ -241,6 +241,18 @@ def apply_theme() -> None:
         }}
         .stAlert {{ border: 1px solid {t["border"]}; border-radius: 2px; }}
 
+        .st-key-fincent_nav {{ gap: 0.5rem; margin-bottom: 0.5rem; }}
+        .st-key-fincent_nav a {{
+            border: 1px solid {t["border"]};
+            border-radius: 999px;
+            padding: 0.2rem 0.9rem;
+        }}
+        .st-key-fincent_nav a p {{ color: {t["text"]}; }}
+        /* The open sidebar already lists these pages. */
+        [data-testid="stAppViewContainer"]:has([data-testid="stSidebar"][aria-expanded="true"]) .st-key-fincent_nav {{
+            display: none;
+        }}
+
         button[kind="primary"] {{
             background: #F5F5F2;
             color: #050505;
@@ -276,6 +288,14 @@ def apply_theme() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def _page_menu() -> None:
+    """Page links in the page itself, for when the sidebar is closed."""
+    with st.container(key="fincent_nav", horizontal=True):
+        st.page_link("app.py", label="Dashboard", width="content")
+        st.page_link("pages/3_Analytics.py", label="Analytics", width="content")
+        st.page_link("pages/4_Agents.py", label="Agents", width="content")
 
 
 def ticker_input(label: str = "Ticker") -> str:
@@ -335,6 +355,7 @@ def page_header(
     title: str, kicker: str, description: str, *, hero: bool = False
 ) -> None:
     """Render an editorial hero on the dashboard or a restrained page heading."""
+    _page_menu()
     headline = "<br>".join(escape(line) for line in title.split("\n"))
     if hero:
         background = (

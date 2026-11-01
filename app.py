@@ -130,4 +130,4 @@ with about_slot.container():
     if written_by_ai:
         st.caption("Written by AI from public fund and company information.")
 
-persona_panel.render(ticker, metrics, quote, is_fund, provider)
+persona_panel.render(ticker, metrics, quote)

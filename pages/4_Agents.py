@@ -17,7 +17,7 @@ provider = ui.select_provider()
 
 ticker = ui.ticker_input()
 if not ticker:
-    persona_panel.show_profiles(expanded=True)
+    persona_panel.show_profiles()
     st.stop()
 
 try:
@@ -40,6 +40,4 @@ persona_panel.render(
     ticker,
     persona_panel.metrics_for(ticker, fundamentals, history["Close"], provider),
     snapshot["quote"],
-    bool(fundamentals.get("is_fund")),
-    provider,
 )
