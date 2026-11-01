@@ -46,11 +46,11 @@ _ROLE_REASON = {
 
 
 def slammed(results: list[dict]) -> bool:
-    """True when more than half of the parsed verdicts are AVOID."""
+    """True when more than half of the parsed verdicts are Skip."""
     verdicts = [result.get("verdict") for result in results if result.get("verdict")]
     if not verdicts:
         return False
-    return verdicts.count("AVOID") > len(verdicts) / 2
+    return verdicts.count("Skip") > len(verdicts) / 2
 
 
 def classify(ticker: str, name: str | None) -> str:

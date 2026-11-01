@@ -131,3 +131,45 @@ def test_entry_read_likes_an_intact_uptrend():
 
 def test_entry_read_has_no_opinion_without_long_history():
     assert technicals.entry_read(_summary(100.0))["label"] == "No clear signal"
+
+
+def _chart(price, sma_50=None, sma_200=None, rsi_14=50.0):
+    return {"price": price, "sma_50": sma_50, "sma_200": sma_200, "rsi_14": rsi_14}
+
+
+def test_price_levels_picks_the_nearest_level_above_the_trend_line():
+    prices = pd.Series([100.0] * 60 + [95.0] + [100.0] * 2)
+    levels = technicals.price_levels(prices, _chart(100.0, sma_50=98.0, sma_200=90.0))
+    assert levels == {"better_price": 98.0, "trend_line": 90.0}
+
+
+def test_price_levels_skips_a_dip_too_small_to_wait_for():
+    prices = pd.Series([100.0] * 70)
+    levels = technicals.price_levels(prices, _chart(100.0, sma_50=99.5, sma_200=90.0))
+    assert levels["better_price"] is None
+
+
+def test_price_levels_never_offers_a_price_under_the_trend_line():
+    prices = pd.Series([85.0] + [100.0] * 62)
+    levels = technicals.price_levels(prices, _chart(100.0, sma_50=99.9, sma_200=90.0))
+    assert levels["better_price"] is None
+
+
+def test_buy_answer_below_the_trend_says_when_to_look_again():
+    summary = _chart(80.0, sma_50=85.0, sma_200=90.0)
+    result = technicals.buy_answer(summary, {"better_price": None, "trend_line": 90.0}, "USD")
+    assert result["answer"] == "Not yet"
+    assert "climbs back above 90.00 USD" in result["next_step"]
+
+
+def test_buy_answer_on_a_pullback_gives_both_prices():
+    summary = _chart(100.0, sma_50=105.0, sma_200=90.0, rsi_14=40.0)
+    result = technicals.buy_answer(summary, {"better_price": 95.0, "trend_line": 90.0}, "USD")
+    assert result["answer"] == "Maybe, but there's no rush"
+    assert "95.00 USD" in result["next_step"]
+    assert "falls below 90.00 USD" in result["next_step"]
+
+
+def test_buy_answer_works_without_enough_history():
+    result = technicals.buy_answer(_chart(100.0), {"better_price": None, "trend_line": None}, None)
+    assert result == {"answer": "No rush", "next_step": ""}

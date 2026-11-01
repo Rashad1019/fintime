@@ -72,6 +72,7 @@ def assemble_metrics(
     metrics["rsi_14"] = summary["rsi_14"]
     metrics["return_1mo"] = summary["return_1mo"]
     metrics["technical_sentiment"] = f"{verdict['label']} (score {verdict['score']:+d})"
+    metrics.update(technicals.price_levels(prices, summary))
 
     yield_range = dividend_yield_range(
         prices if dividend_prices is None else dividend_prices, dividends

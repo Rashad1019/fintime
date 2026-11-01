@@ -99,6 +99,9 @@ st.subheader("Is now a good time?")
 summary = technicals.build_summary(risk_history["Close"])
 mood = technicals.sentiment(summary)
 entry = technicals.entry_read(summary)
+levels = technicals.price_levels(risk_history["Close"], summary)
+buy = technicals.buy_answer(summary, levels, quote.get("currency"))
+ui.buy_answer(buy["answer"], buy["next_step"])
 mood_col, entry_col = st.columns(2)
 mood_col.metric("Trend right now", f"{_MOOD_ICONS[mood['label']]} {mood['label']}")
 entry_col.metric("Entry point", f"{_ENTRY_ICONS[entry['label']]} {entry['label']}")
@@ -113,7 +116,10 @@ with st.expander("How we got this"):
         "momentum, and the one-month move. They read the chart, not the "
         "business, and they can be wrong."
     )
-st.caption("Information only, not financial advice.")
+st.caption(
+    "Prices to watch come from past price moves. They are not predictions. "
+    "Information only, not financial advice."
+)
 
 metrics = persona_panel.metrics_for(ticker, fundamentals, risk_history["Close"], provider)
 numbers = _key_numbers(metrics, profile, is_fund)

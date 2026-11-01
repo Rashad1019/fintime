@@ -341,6 +341,17 @@ def move_sentence(change: float | None, period: str) -> None:
     )
 
 
+def buy_answer(answer: str, next_step: str) -> None:
+    """The plain "should I buy today?" answer and what to watch for."""
+    st.markdown(
+        f'<div class="fincent-move" style="color:{THEME["text"]}">'
+        f"Should I buy today? {escape(answer)}.</div>",
+        unsafe_allow_html=True,
+    )
+    if next_step:
+        st.write(next_step)
+
+
 def _timeframe_phrase(period: str) -> str:
     return f"the past {period.removeprefix('1 ')}"
 

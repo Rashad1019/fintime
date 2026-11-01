@@ -13,7 +13,7 @@ from agents import openrouter_client
 from agents.metrics import assemble_metrics
 from agents.personas import PERSONAS, PROFILE_BY_NAME, build_prompt, profiles_by_group
 from agents.recommendations import CANDIDATES, pick_replacements, slammed
-from agents.verdicts import parse_verdict
+from agents.verdicts import parse_verdict, without_verdict
 from config import (
     DCF_DISCOUNT,
     DCF_GROWTH,
@@ -69,9 +69,8 @@ def show_profiles() -> None:
 def render(ticker: str, metrics: dict, quote: dict) -> None:
     st.subheader("What the investors would say")
     st.caption(
-        "AI personas modeled on how famous investors think, each given the "
-        "real numbers on this page. These are not the actual people, and this "
-        "is not financial advice."
+        "Inspired by how famous investors think. These aren't the real people, "
+        "and this isn't financial advice."
     )
     show_profiles()
     selected = st.multiselect(
@@ -156,7 +155,7 @@ def _show_run(ticker: str, saved: dict, quote: dict) -> None:
             {
                 "Investor": result["persona"],
                 "Verdict": result.get("verdict") or "—",
-                "Conviction (1-10)": "—" if result.get("conviction") is None else str(result["conviction"]),
+                "How sure (1-10)": "—" if result.get("conviction") is None else str(result["conviction"]),
             }
             for result in results
         ),
@@ -171,7 +170,7 @@ def _show_run(ticker: str, saved: dict, quote: dict) -> None:
             if profile is not None:
                 st.caption(f"{profile.group} · {profile.summary}")
             if result.get("reply"):
-                st.markdown(escape_dollars(result["reply"]))
+                st.markdown(escape_dollars(without_verdict(result["reply"])))
             else:
                 st.error("The network was busy, so this investor could not answer.")
     with st.expander("Numbers given to the personas"):

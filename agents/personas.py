@@ -278,6 +278,8 @@ _METRIC_LABELS = {
     "rsi_14": "RSI (14-day)",
     "return_1mo": "1-month price return",
     "technical_sentiment": "Technical sentiment",
+    "better_price": "Better price to wait for",
+    "trend_line": "Long-term trend line (200-day average)",
 }
 
 # Metrics stored as fractions (0.0325 = 3.25%) — rendered as percentages.
@@ -314,29 +316,26 @@ def build_prompt(ticker: str, metrics: dict) -> str:
         lines.append(f"- {label}: {_format_value(key, value)}")
     lines += [
         "",
-        "Base your analysis on only the numbers provided above — do not "
-        "invent or assume figures that are not listed (missing values are "
-        "marked N/A).",
-        "Write for a serious retail investor who wants substance: interpret "
-        "the numbers, don't just restate them. Explain what each figure you "
-        "cite implies about the business and the price.",
-        "Give your verdict in this structure:",
-        "1. Business quality: what the profitability, margins, and cash "
-        "generation say about this company through your framework",
-        "2. Valuation: is the current price attractive relative to earnings, "
-        "book value, and the DCF intrinsic value (when provided)? Quantify "
-        "the margin of safety or the premium being paid.",
-        "3. Key risks or disqualifiers: what could permanently impair this "
-        "investment, and what in these numbers worries you most",
-        "4. Entry/exit discipline: under what conditions or price behavior "
-        "would you act — accumulate, trim, or walk away — consistent with "
-        "your framework and the technical readings provided",
-        "5. Verdict: BUY / HOLD / AVOID, a conviction score from 1-10, a "
-        "one-paragraph justification, and the single piece of evidence that "
-        "would change your mind",
-        "Management character, customers, and competitors are not in this "
-        "data. If your framework needs them, say they were not provided.",
+        "Base your answer on only the numbers provided above. Do not invent "
+        "figures. Missing values are marked N/A. If one you would normally "
+        "use is missing, move on without dwelling on it.",
+        "Your reader has never invested before and just heard about this "
+        "stock or fund. Use everyday words, as if talking to a friend. Avoid "
+        "finance terms such as P/E, RSI, DCF, moat, or margin of safety. If "
+        "you need one, explain it in the same sentence.",
+        "Stay true to how you think, write in the first person, and keep the "
+        "whole answer under 100 words.",
+        "Use exactly these four parts, with these bold labels:",
+        "**My take:** one sentence on how you see it.",
+        "**My move:** what you would do today: buy now, wait, or skip. If you "
+        "would wait, say what you are waiting for. Any price you name must be "
+        "the current price, the better price to wait for, or the long-term "
+        "trend line listed above.",
+        "**Why:** two or three short sentences.",
+        "**What could go wrong:** one sentence.",
         "End with one line and nothing after it, in exactly this form: "
-        "VERDICT: BUY | conviction 7",
+        "VERDICT: WAIT | conviction 7",
+        "The verdict must be BUY NOW, WAIT, or SKIP, and it must match your "
+        "move. Conviction runs from 1 to 10.",
     ]
     return "\n".join(lines)

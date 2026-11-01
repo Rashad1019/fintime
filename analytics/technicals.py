@@ -16,6 +16,8 @@ RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 RSI_PULLBACK_CEILING = 45
 _TRADING_DAYS_PER_MONTH = 21
+_RECENT_LOW_BARS = 63  # about three months of trading days
+_MIN_DIP = 0.01  # a better price has to be worth waiting for
 
 # Sentiment score thresholds: sum of +1/-1 votes from each indicator.
 _BULLISH_SCORE = 2
@@ -109,6 +111,64 @@ def entry_read(summary: dict) -> dict:
         "label": "No clear signal",
         "why": "The chart isn't saying much either way right now.",
     }
+
+
+def price_levels(prices: pd.Series, summary: dict) -> dict:
+    """Two chart prices to watch. Each is None when the chart can't give one.
+
+    better_price is the nearest of the 50-day average and the three-month low
+    that sits under today's price and above the trend line. trend_line is the
+    200-day average. Both come from past prices and are not predictions.
+    """
+    price = summary["price"]
+    trend_line = summary["sma_200"]
+    candidates = [summary["sma_50"], float(prices.iloc[-_RECENT_LOW_BARS:].min())]
+    below = [
+        level
+        for level in candidates
+        if level is not None
+        and level <= price * (1 - _MIN_DIP)
+        and (trend_line is None or level > trend_line)
+    ]
+    return {"better_price": max(below, default=None), "trend_line": trend_line}
+
+
+def buy_answer(summary: dict, levels: dict, currency: str | None) -> dict:
+    """Plain answer to "should I buy today?". Returns {"answer", "next_step"}."""
+
+    def money(value: float) -> str:
+        return f"{value:,.2f} {currency or ''}".strip()
+
+    better_price = levels["better_price"]
+    trend_line = levels["trend_line"]
+    if trend_line is not None and summary["price"] <= trend_line:
+        return {
+            "answer": "Not yet",
+            "next_step": f"Wait until it climbs back above {money(trend_line)}. "
+            "That would show the long-term trend has turned up.",
+        }
+
+    label = entry_read(summary)["label"]
+    answer = {
+        "Good entry": "Looks reasonable",
+        "Possible entry": "Maybe, but there's no rush",
+        "No clear signal": "No rush",
+        "Wait": "Not yet",
+    }[label]
+    steps = []
+    if better_price is not None:
+        lead = (
+            "If you'd rather pay less, watch for around"
+            if label == "Good entry"
+            else "A better price would be around"
+        )
+        steps.append(f"{lead} {money(better_price)}.")
+    if trend_line is not None:
+        steps.append(
+            f"If it falls below {money(trend_line)}, the long-term trend has "
+            "turned down, so hold off."
+        )
+    return {"answer": answer, "next_step": " ".join(steps)}
 
 
 def rsi_zone(value: float | None) -> str:

@@ -67,8 +67,10 @@ def test_every_persona_has_a_public_profile():
 
 def test_build_prompt_requires_a_parseable_verdict_line():
     prompt = build_prompt("AAPL", SAMPLE_METRICS)
-    assert "VERDICT: BUY | conviction 7" in prompt
-    assert "were not provided" in prompt
+    assert "VERDICT: WAIT | conviction 7" in prompt
+    assert "**My move:**" in prompt
+    assert "under 100 words" in prompt
+    assert "Do not invent" in prompt
 
 
 def test_build_prompt_renders_percent_metrics_as_percentages():

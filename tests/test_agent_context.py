@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from agents.metrics import assemble_metrics
-from agents.verdicts import parse_verdict
+from agents.verdicts import parse_verdict, without_verdict
 from analytics.dividends import dividend_yield_range, trailing_yield
 from data import DataSourceError, fallback_source, macro
 from data.macro import inflation_yoy
@@ -23,14 +23,24 @@ def _payouts_to_today(amount: float, count: int, days: int) -> pd.Series:
 def test_parse_verdict_uses_the_last_structured_line():
     text = (
         "A passing mention of BUY is not the verdict.\n"
-        "VERDICT: HOLD | conviction 4\n"
-        "VERDICT: AVOID | conviction 8"
+        "VERDICT: WAIT | conviction 4\n"
+        "VERDICT: SKIP | conviction 8"
     )
-    assert parse_verdict(text) == ("AVOID", 8)
+    assert parse_verdict(text) == ("Skip", 8)
+
+
+def test_parse_verdict_reads_buy_now_and_a_bare_buy():
+    assert parse_verdict("VERDICT: BUY NOW | conviction 7") == ("Buy now", 7)
+    assert parse_verdict("VERDICT: buy | conviction 7") == ("Buy now", 7)
+
+
+def test_without_verdict_removes_the_line_readers_should_not_see():
+    reply = "**My take:** Fine.\n\n**VERDICT: WAIT | conviction 6**"
+    assert without_verdict(reply) == "**My take:** Fine."
 
 
 def test_parse_verdict_rejects_a_score_outside_one_to_ten():
-    assert parse_verdict("VERDICT: BUY | conviction 12") == ("BUY", None)
+    assert parse_verdict("VERDICT: WAIT | conviction 12") == ("Wait", None)
     assert parse_verdict("no verdict here") == (None, None)
 
 

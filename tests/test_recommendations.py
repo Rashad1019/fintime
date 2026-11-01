@@ -2,8 +2,8 @@ from agents.recommendations import classify, pick_replacements, slammed
 
 
 def test_slammed_when_most_verdicts_are_avoid():
-    assert slammed([{"verdict": "AVOID"}, {"verdict": "AVOID"}, {"verdict": "HOLD"}])
-    assert not slammed([{"verdict": "BUY"}, {"verdict": "AVOID"}])
+    assert slammed([{"verdict": "Skip"}, {"verdict": "Skip"}, {"verdict": "Wait"}])
+    assert not slammed([{"verdict": "Buy now"}, {"verdict": "Skip"}])
     assert not slammed([{"verdict": None}])
 
 
