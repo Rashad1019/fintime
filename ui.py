@@ -1,21 +1,19 @@
 """Shared Streamlit UI helpers used across pages.
 
-Visual identity: "Black Ledger" — editorial, restrained market intelligence.
+Visual identity: near-black ground with a yellow accent.
 Palette and fonts are defined once in THEME/apply_theme() so every page
 stays visually consistent; call ui.apply_theme() right after
 st.set_page_config() on every page.
 """
 
-from base64 import b64encode
 from html import escape
-from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from config import INTRADAY_WINDOW_HOURS
 from data import yahoo
+from formatting import fmt_pct
 
 # Single source of truth for the palette — reused by CSS injection and by
 # the Plotly chart colors so charts match the chrome around them.
@@ -24,8 +22,8 @@ THEME = {
     "surface": "#0B0B0D",
     "surface_alt": "#111115",
     "border": "#2A2A30",
-    "primary": "#8E96FF",
-    "secondary": "#446DFF",
+    "primary": "#F5C41C",
+    "secondary": "#C99E0F",
     "text": "#F7F7F4",
     "text_muted": "#99999F",
     "positive": "#4BD49B",
@@ -42,7 +40,7 @@ _GOOGLE_FONTS_URL = (
 
 
 def apply_theme() -> None:
-    """Inject the restrained Black Ledger visual system."""
+    """Inject the dark and yellow visual system."""
     t = THEME
     st.markdown(
         f"""
@@ -57,7 +55,7 @@ def apply_theme() -> None:
             backdrop-filter: blur(18px);
         }}
         [data-testid="stAppViewContainer"] {{ color: {t["text"]}; }}
-        .block-container {{ max-width: 1380px; padding-top: 1.7rem; padding-bottom: 5rem; }}
+        .block-container {{ max-width: 860px; padding-top: 5rem !important; padding-bottom: 5rem; }}
 
         h1, h2, h3, h4 {{
             color: {t["text"]};
@@ -96,63 +94,34 @@ def apply_theme() -> None:
             margin: 0.9rem 0 0;
         }}
 
-        .fincent-home-hero {{
-            min-height: 570px;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
-            padding: 2.2rem 2.6rem 2.7rem;
-            border: 1px solid #202026;
-            background-color: #000;
-            background-size: cover;
-            background-position: center;
-            position: relative;
-            overflow: hidden;
-        }}
+        .fincent-home {{ padding: 0.6rem 0 1.4rem; }}
         .fincent-wordmark {{
-            position: absolute;
-            left: 2.6rem;
-            top: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 0.55rem;
-            color: #fff;
+            color: {t["primary"]};
             font-size: 1.05rem;
-            font-weight: 650;
-            letter-spacing: -0.04em;
+            font-weight: 700;
+            letter-spacing: -0.02em;
         }}
-        .fincent-wordmark-symbol {{
-            width: 15px;
-            height: 15px;
-            border: 1.5px solid #fff;
-            border-radius: 50%;
-            display: inline-block;
-            position: relative;
+        .fincent-home h1 {{
+            font-size: clamp(2.1rem, 6vw, 3.3rem);
+            line-height: 1.05;
+            margin: 0.6rem 0 0;
+            padding: 0;
         }}
-        .fincent-wordmark-symbol::after {{
-            content: "";
-            position: absolute;
-            top: -2px;
-            bottom: -2px;
-            left: 50%;
-            border-left: 1.5px solid #fff;
-            transform: rotate(24deg);
+        .fincent-home p {{ margin: 0.7rem 0 0; font-size: 1rem; line-height: 1.55; }}
+        .fincent-ticker {{ margin: 1.4rem 0 0.4rem; }}
+        .fincent-ticker h2 {{ font-size: 1.7rem; line-height: 1.2; margin: 0; padding: 0; }}
+        .fincent-ticker .fincent-price {{
+            color: {t["text"]};
+            font-family: {t["font_mono"]};
+            font-size: 1.5rem;
+            margin-top: 0.35rem;
         }}
-        .fincent-home-hero h1 {{
-            color: #fff;
-            font-size: clamp(3.4rem, 7.6vw, 7.4rem);
-            line-height: 0.88;
-            letter-spacing: -0.075em;
-            margin: 0;
-            max-width: 950px;
+        .fincent-ticker .fincent-facts {{
+            color: {t["text_muted"]};
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
         }}
-        .fincent-home-hero p {{
-            color: #B8B8BE;
-            max-width: 560px;
-            font-size: 0.92rem;
-            line-height: 1.65;
-            margin: 1.45rem 0 0;
-        }}
+        .fincent-move {{ font-size: 1.15rem; font-weight: 600; margin: 0.2rem 0 0.8rem; }}
 
         [data-testid="stMetric"] {{
             min-height: 96px;
@@ -199,7 +168,7 @@ def apply_theme() -> None:
         }}
         [data-testid="stSidebarNavLink"] span[label="app"] p {{ font-size: 0; }}
         [data-testid="stSidebarNavLink"] span[label="app"] p::after {{
-            content: "Dashboard";
+            content: "Home";
             font-size: 0.72rem;
         }}
 
@@ -228,7 +197,7 @@ def apply_theme() -> None:
         .stAlert {{ border: 1px solid {t["border"]}; border-radius: 2px; }}
 
         button[kind="primary"] {{
-            background: #F5F5F2;
+            background: {t["primary"]};
             color: #050505;
             border: 0;
             border-radius: 999px;
@@ -247,14 +216,7 @@ def apply_theme() -> None:
         hr {{ border-color: {t["border"]}; }}
 
         @media (max-width: 760px) {{
-            .block-container {{ padding-top: 1rem; }}
-            .fincent-home-hero {{
-                min-height: 500px;
-                padding: 1.25rem 1.25rem 1.7rem;
-                background-position: 58% center;
-            }}
-            .fincent-wordmark {{ left: 1.25rem; top: 1.2rem; }}
-            .fincent-home-hero h1 {{ font-size: clamp(3rem, 16vw, 5rem); }}
+            .block-container {{ padding-top: 4.5rem !important; }}
             .fincent-section-header {{ padding: 1.35rem 0; }}
         }}
         </style>
@@ -263,40 +225,58 @@ def apply_theme() -> None:
     )
 
 
-def _hero_data_uri() -> str:
-    asset = Path(__file__).resolve().parent / "assets" / "fincent-hero.png"
-    payload = b64encode(asset.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{payload}"
+def home_header() -> None:
+    st.markdown(
+        """
+        <div class="fincent-home">
+            <div class="fincent-wordmark">Fincent</div>
+            <h1>Heard about a stock or fund? Look it up.</h1>
+            <p>Find out what it is, how it has done, and what investors would say.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
-def page_header(
-    title: str, kicker: str, description: str, *, hero: bool = False
-) -> None:
-    """Render an editorial hero on the dashboard or a restrained page heading."""
-    headline = "<br>".join(escape(line) for line in title.split("\n"))
-    if hero:
-        background = (
-            "linear-gradient(90deg, rgba(0,0,0,.98) 0%, rgba(0,0,0,.82) 35%, "
-            "rgba(0,0,0,.08) 72%), "
-            f"url('{_hero_data_uri()}')"
-        )
-        st.markdown(
-            f"""
-            <div class="fincent-page-header fincent-home-hero" style="background-image:{background}">
-                <div class="fincent-wordmark">
-                    <span class="fincent-wordmark-symbol"></span> fincent
-                </div>
-                <div class="fincent-header-copy">
-                    <div class="fincent-kicker">{escape(kicker)}</div>
-                    <h1>{headline}</h1>
-                    <p>{escape(description)}</p>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+def ticker_title(quote: dict, ticker: str, profile: dict) -> None:
+    """Name, price, and the short facts line for the ticker being viewed."""
+    facts = [ticker] + [
+        profile[key] for key in ("kind", "family", "category", "sector") if profile.get(key)
+    ]
+    price = f"{quote['price']:,.2f} {quote.get('currency') or ''}".strip()
+    st.markdown(
+        f"""
+        <div class="fincent-ticker">
+            <h2>{escape(profile.get("name") or quote["name"])}</h2>
+            <div class="fincent-price">{escape(price)}</div>
+            <div class="fincent-facts">{escape(" · ".join(facts))}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def move_sentence(change: float | None, period: str) -> None:
+    """One line saying how the price moved over the chosen timeframe."""
+    if change is None:
         return
+    t = THEME
+    color = t["positive"] if change >= 0 else t["negative"]
+    direction = "Up" if change >= 0 else "Down"
+    st.markdown(
+        f'<div class="fincent-move" style="color:{color}">'
+        f"{direction} {escape(fmt_pct(abs(change)))} over {escape(_timeframe_phrase(period))}</div>",
+        unsafe_allow_html=True,
+    )
 
+
+def _timeframe_phrase(period: str) -> str:
+    return f"the past {period.removeprefix('1 ')}"
+
+
+def page_header(title: str, kicker: str, description: str) -> None:
+    """Render a restrained page heading."""
+    headline = "<br>".join(escape(line) for line in title.split("\n"))
     st.markdown(
         f"""
         <div class="fincent-page-header fincent-section-header">
@@ -360,19 +340,6 @@ def show_source_banner(source: str, provider: str) -> None:
         )
 
 
-def slice_intraday_window(history: pd.DataFrame, period: str) -> pd.DataFrame:
-    """Trim a day's bars down to the last N hours for sub-day periods.
-
-    Yahoo has no 1-hour or 4-hour range, so those periods fetch a full day
-    of intraday bars and slice the tail here.
-    """
-    hours = INTRADAY_WINDOW_HOURS.get(period)
-    if not hours:
-        return history
-    cutoff = history.index.max() - pd.Timedelta(hours=hours)
-    return history[history.index >= cutoff]
-
-
 def _themed_layout(fig: go.Figure) -> go.Figure:
     """Apply the terminal-dark chart chrome shared by both chart types."""
     t = THEME
@@ -425,8 +392,6 @@ def render_price_chart(history: pd.DataFrame, chart_type: str) -> None:
             y=history["Close"],
             mode="lines",
             line=dict(color=t["primary"], width=2.2),
-            fill="tozeroy",
-            fillcolor="rgba(92, 111, 255, 0.09)",
         )
     )
     st.plotly_chart(_themed_layout(fig), width='stretch')

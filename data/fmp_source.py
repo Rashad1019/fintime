@@ -176,6 +176,19 @@ def get_snapshot(ticker: str) -> dict:
     return {"quote": quote, "fundamentals": fundamentals}
 
 
+def get_profile(ticker: str) -> dict:
+    """Company or fund description from FMP's profile endpoint."""
+    profile = _first("profile", ticker.upper())
+    is_fund = profile.get("isEtf") or profile.get("isFund")
+    return {
+        "name": profile.get("companyName") or ticker.upper(),
+        "kind": "Fund" if is_fund else "Stock",
+        "summary": profile.get("description"),
+        "sector": profile.get("sector"),
+        "industry": profile.get("industry"),
+    }
+
+
 def _date_range(period: str) -> tuple[str, str]:
     today = datetime.date.today()
     if period == "max":

@@ -62,6 +62,55 @@ def build_summary(prices: pd.Series) -> dict:
     }
 
 
+def period_return(prices: pd.Series) -> float | None:
+    """Change from the first price to the last, or None without two prices."""
+    if len(prices) < 2 or not prices.iloc[0]:
+        return None
+    return float(prices.iloc[-1] / prices.iloc[0] - 1)
+
+
+def entry_read(summary: dict) -> dict:
+    """One plain answer to "is this a good entry?". Returns {"label", "why"}.
+
+    Warnings outrank entry signals: a stretched or broken chart says wait
+    even when another rule would call it an entry.
+    """
+    price = summary["price"]
+    rsi_14 = summary["rsi_14"]
+    sma_50 = summary["sma_50"]
+    sma_200 = summary["sma_200"]
+    above_long_term = sma_200 is not None and price > sma_200
+
+    if rsi_14 is not None and rsi_14 >= RSI_OVERBOUGHT:
+        return {
+            "label": "Wait",
+            "why": "The price has run up quickly. Buying after a fast rise is "
+            "risky, and pullbacks are common.",
+        }
+    if sma_200 is not None and not above_long_term:
+        return {
+            "label": "Wait",
+            "why": "The price is below its 200-day average, so the long-term "
+            "trend is pointing down.",
+        }
+    if rsi_14 is not None and rsi_14 <= RSI_PULLBACK_CEILING and above_long_term:
+        return {
+            "label": "Possible entry",
+            "why": "The price has been falling lately, but the long-term "
+            "trend is still up. That can be a pullback worth buying, or the "
+            "start of a bigger drop. Nobody knows which until later.",
+        }
+    if sma_50 is not None and above_long_term and sma_50 > sma_200 and price > sma_50:
+        return {
+            "label": "Good entry",
+            "why": "The trend is up and the price is not stretched.",
+        }
+    return {
+        "label": "No clear signal",
+        "why": "The chart isn't saying much either way right now.",
+    }
+
+
 def rsi_zone(value: float | None) -> str:
     if value is None:
         return "unknown"
@@ -70,38 +119,6 @@ def rsi_zone(value: float | None) -> str:
     if value <= RSI_OVERSOLD:
         return "oversold"
     return "neutral"
-
-
-def resample_closes(prices: pd.Series, rule: str | None) -> pd.Series:
-    """Downsample closes to bigger bars (e.g. hourly -> 4h). None = as-is."""
-    if rule is None:
-        return prices
-    return prices.resample(rule).last().dropna()
-
-
-def rsi_signal(value: float | None, bar_label: str) -> str:
-    """One-line trader interpretation of an RSI reading on a given bar size."""
-    if value is None:
-        return (
-            f"Not enough {bar_label} bars to compute RSI on this timeframe."
-        )
-    zone = rsi_zone(value)
-    if zone == "overbought":
-        return (
-            f"On the {bar_label} timeframe, RSI at {value:.0f} is overbought — "
-            "momentum is stretched; chasing an entry here is risky and "
-            "pullbacks are common."
-        )
-    if zone == "oversold":
-        return (
-            f"On the {bar_label} timeframe, RSI at {value:.0f} is oversold — "
-            "selling pressure may be exhausted; watch for a bounce or a "
-            "basing pattern before acting."
-        )
-    return (
-        f"On the {bar_label} timeframe, RSI at {value:.0f} is in the neutral "
-        "zone — no overbought/oversold edge; let the trend decide."
-    )
 
 
 def enter_suggestions(summary: dict) -> list[str]:

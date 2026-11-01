@@ -1,6 +1,6 @@
 # Investor Agents
 
-Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) past 16 investor personas, each modeled on a real investor's published framework. Full system prompts live in `agents/personas.py`.
+Fincent's ticker page runs a ticker's real computed numbers (ratios, DCF, risk) past 16 investor personas, each modeled on a real investor's published framework. Full system prompts live in `agents/personas.py`.
 
 ## Classic value
 
@@ -55,4 +55,4 @@ Fincent's Agents page runs a ticker's real computed numbers (ratios, DCF, risk) 
 
 ---
 
-Every persona receives the same prompt: the ticker's real price, ratios, DCF value, and risk metrics, with an explicit instruction to reason only from the numbers given (missing data shown as N/A) rather than invent figures. See `agents/personas.py` for the full system prompts and `pages/4_Agents.py` for how they're invoked.
+Every persona receives the same prompt: the ticker's real price, ratios, DCF value, and risk metrics, with an explicit instruction to reason only from the numbers given (missing data shown as N/A) rather than invent figures. See `agents/personas.py` for the full system prompts and `persona_panel.py` for how they're invoked.

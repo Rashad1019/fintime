@@ -10,11 +10,13 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import streamlit as st
 
+from agents import explainer, openrouter_client
 from data import DataSourceError, macro, yahoo
 
 logger = logging.getLogger(__name__)
 
 QUOTE_TTL_SECONDS = 300
+ABOUT_TTL_SECONDS = 60 * 60 * 24 * 7
 HISTORY_TTL_SECONDS = 900
 _MAX_PARALLEL_FETCHES = 8
 
@@ -35,6 +37,27 @@ def get_history(
 ) -> pd.DataFrame:
     """Cached OHLC prices."""
     return yahoo.fetch_history(ticker, period, interval, provider, adjusted)
+
+
+@st.cache_data(ttl=ABOUT_TTL_SECONDS, show_spinner=False)
+def get_profile(ticker: str) -> dict:
+    """Cached name, type, and description (see yahoo.fetch_profile)."""
+    return yahoo.fetch_profile(ticker)
+
+
+@st.cache_data(ttl=ABOUT_TTL_SECONDS, show_spinner=False)
+def _written_explanation(ticker: str) -> str:
+    """Cached for a week and shared by every viewer. Failures are not cached."""
+    return explainer.explain(ticker, get_profile(ticker))
+
+
+def get_explanation(ticker: str) -> tuple[str, bool]:
+    """(text, written_by_ai). Falls back to the source's own description."""
+    try:
+        return _written_explanation(ticker), True
+    except openrouter_client.OpenRouterError:
+        logger.warning("Could not write an explanation for %s", ticker, exc_info=True)
+        return explainer.fallback_text(ticker, get_profile(ticker)), False
 
 
 @st.cache_data(ttl=HISTORY_TTL_SECONDS, show_spinner=False)
@@ -78,7 +101,7 @@ def _snapshot_or_none(ticker: str, provider: str) -> dict | None:
 def get_snapshots(
     tickers: tuple[str, ...], provider: str = yahoo.PROVIDER_AUTO
 ) -> dict[str, dict | None]:
-    """Snapshots for a whole watchlist, fetched in parallel.
+    """Snapshots for a set of tickers, fetched in parallel.
 
     Workers run only pure data.yahoo code (no Streamlit calls in threads).
     A ticker that fails maps to None instead of sinking the whole page.

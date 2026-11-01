@@ -1,8 +1,8 @@
-"""SQLite-backed watchlist persistence.
+"""SQLite persistence for saved persona runs.
 
 The database location resolves in order: explicit db_path argument,
 FINCENT_DB_PATH environment variable, watchlist.db in the project root.
-Tests pass a temp path so they never touch the real watchlist.
+Tests pass a temp path so they never touch the real database.
 """
 
 import json
@@ -24,11 +24,6 @@ def _resolve_db_path(db_path: PathLike) -> Path:
 def _connect(db_path: PathLike = None) -> sqlite3.Connection:
     conn = sqlite3.connect(_resolve_db_path(db_path))
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS tickers ("
-        "symbol TEXT PRIMARY KEY, "
-        "added_at TEXT DEFAULT CURRENT_TIMESTAMP)"
-    )
-    conn.execute(
         "CREATE TABLE IF NOT EXISTS agent_runs ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "ticker TEXT NOT NULL, "
@@ -37,29 +32,6 @@ def _connect(db_path: PathLike = None) -> sqlite3.Connection:
         "results_json TEXT NOT NULL)"
     )
     return conn
-
-
-def add_ticker(symbol: str, db_path: PathLike = None) -> None:
-    conn = _connect(db_path)
-    try:
-        with conn:
-            conn.execute(
-                "INSERT OR IGNORE INTO tickers (symbol) VALUES (?)",
-                (symbol.strip().upper(),),
-            )
-    finally:
-        conn.close()
-
-
-def remove_ticker(symbol: str, db_path: PathLike = None) -> None:
-    conn = _connect(db_path)
-    try:
-        with conn:
-            conn.execute(
-                "DELETE FROM tickers WHERE symbol = ?", (symbol.strip().upper(),)
-            )
-    finally:
-        conn.close()
 
 
 def save_agent_run(
@@ -98,12 +70,3 @@ def latest_agent_run(ticker: str, db_path: PathLike = None) -> dict | None:
         "prompt": row[3],
         "results": json.loads(row[4]),
     }
-
-
-def list_tickers(db_path: PathLike = None) -> list[str]:
-    conn = _connect(db_path)
-    try:
-        rows = conn.execute("SELECT symbol FROM tickers ORDER BY symbol").fetchall()
-        return [row[0] for row in rows]
-    finally:
-        conn.close()

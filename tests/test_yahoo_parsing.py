@@ -463,3 +463,49 @@ def test_fallback_malformed_payload_raises(monkeypatch):
     )
     with pytest.raises(DataSourceError, match="AAPL"):
         fallback_source.get_history("AAPL", "1mo")
+
+
+def test_profile_reads_a_fund_from_yfinance(monkeypatch):
+    class FakeTicker:
+        info = {
+            "longName": "iShares Core S&P 500 ETF",
+            "quoteType": "ETF",
+            "longBusinessSummary": "Tracks the S&P 500.",
+            "fundFamily": "iShares",
+            "netExpenseRatio": 0.03,
+        }
+
+        def __init__(self, symbol):
+            pass
+
+    monkeypatch.setattr(yahoo.yf, "Ticker", FakeTicker)
+
+    profile = yahoo.fetch_profile("ivv")
+
+    assert profile["name"] == "iShares Core S&P 500 ETF"
+    assert profile["kind"] == "ETF"
+    assert profile["family"] == "iShares"
+    assert profile["expense_ratio"] == pytest.approx(0.0003)
+
+
+def test_profile_falls_back_to_fmp(monkeypatch):
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenTicker)
+    monkeypatch.setattr(fmp_source, "get_profile", lambda ticker: {"name": "From FMP"})
+    assert yahoo.fetch_profile("IVV") == {"name": "From FMP"}
+
+
+def test_profile_falls_back_to_the_chart_api(monkeypatch):
+    def no_fmp(ticker):
+        raise DataSourceError("down")
+
+    history = pd.DataFrame({"Close": [1.0]})
+    history.attrs["meta"] = {"longName": "iShares Core S&P 500 ETF", "instrumentType": "ETF"}
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenTicker)
+    monkeypatch.setattr(fmp_source, "get_profile", no_fmp)
+    monkeypatch.setattr(fallback_source, "get_history", lambda ticker, period: history)
+
+    profile = yahoo.fetch_profile("IVV")
+
+    assert profile["name"] == "iShares Core S&P 500 ETF"
+    assert profile["kind"] == "ETF"
+    assert profile["summary"] is None

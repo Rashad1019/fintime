@@ -25,6 +25,7 @@ PROVIDER_AUTO = "auto"
 PROVIDERS = (PROVIDER_AUTO, SOURCE_YAHOO, SOURCE_FMP, SOURCE_FALLBACK)
 
 _FUND_QUOTE_TYPES = {"ETF", "MUTUALFUND"}
+_KINDS = {"ETF": "ETF", "MUTUALFUND": "Mutual fund", "EQUITY": "Stock"}
 _EQUITY_ROWS = ("Common Stock Equity", "Stockholders Equity")
 
 
@@ -163,6 +164,43 @@ def _snapshot_from_chart_api(ticker: str) -> dict:
         "fundamentals": None,
         "source": SOURCE_FALLBACK,
     }
+
+
+def _profile_from_info(ticker: str, info: dict) -> dict:
+    expense_ratio = info.get("netExpenseRatio")
+    return {
+        "name": info.get("longName") or info.get("shortName") or ticker,
+        "kind": _KINDS.get(info.get("quoteType")),
+        "summary": info.get("longBusinessSummary"),
+        "family": info.get("fundFamily"),
+        "category": info.get("category"),
+        "expense_ratio": None if expense_ratio is None else expense_ratio / 100,
+        "sector": info.get("sector"),
+        "industry": info.get("industry"),
+    }
+
+
+def fetch_profile(ticker: str) -> dict:
+    """What a ticker is: name, type, and a description where one exists.
+
+    Tries yfinance, FMP, then the chart API, which has a name and a type but
+    no description. Raises DataSourceError if none of them know the ticker.
+    """
+    ticker = ticker.upper()
+    try:
+        info = yf.Ticker(ticker).info
+        if info and (info.get("longName") or info.get("shortName")):
+            return _profile_from_info(ticker, info)
+    except Exception:
+        logger.warning("yfinance profile failed for %s", ticker, exc_info=True)
+
+    try:
+        return fmp_source.get_profile(ticker)
+    except DataSourceError:
+        logger.warning("FMP profile failed for %s", ticker, exc_info=True)
+
+    meta = fallback_source.get_history(ticker, period="5d").attrs.get("meta", {})
+    return _profile_from_info(ticker, {**meta, "quoteType": meta.get("instrumentType")})
 
 
 def fetch_dividends(ticker: str) -> pd.Series:

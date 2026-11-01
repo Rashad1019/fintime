@@ -76,39 +76,6 @@ class TestSignals:
         assert "no entry signals" in entries[0].lower()
 
 
-class TestResampleCloses:
-    def test_none_rule_returns_input_unchanged(self):
-        prices = _series([1.0, 2.0, 3.0])
-        assert technicals.resample_closes(prices, None) is prices
-
-    def test_resamples_hourly_to_4h_last_close(self):
-        hourly = pd.Series(
-            range(8), index=pd.date_range("2026-01-01", periods=8, freq="h")
-        )
-        four_hour = technicals.resample_closes(hourly, "4h")
-        assert len(four_hour) == 2
-        assert list(four_hour) == [3, 7]  # last close of each 4h bucket
-
-
-class TestRsiSignal:
-    def test_overbought_signal(self):
-        text = technicals.rsi_signal(80.0, "4-hour")
-        assert "4-hour" in text
-        assert "overbought" in text.lower()
-
-    def test_oversold_signal(self):
-        text = technicals.rsi_signal(20.0, "weekly")
-        assert "oversold" in text.lower()
-
-    def test_neutral_signal(self):
-        text = technicals.rsi_signal(50.0, "daily")
-        assert "neutral" in text.lower()
-
-    def test_missing_value_signal(self):
-        text = technicals.rsi_signal(None, "monthly")
-        assert "not enough" in text.lower()
-
-
 class TestSentiment:
     def test_rising_prices_are_bullish(self):
         verdict = technicals.sentiment(technicals.build_summary(RISING))
@@ -132,3 +99,35 @@ class TestSentiment:
         }
         verdict = technicals.sentiment(summary)
         assert verdict["label"] == "Neutral"
+
+
+def _summary(price, rsi=50.0, sma_50=None, sma_200=None):
+    return {"price": price, "rsi_14": rsi, "sma_50": sma_50, "sma_200": sma_200}
+
+
+def test_period_return_compares_first_and_last():
+    assert technicals.period_return(pd.Series([100.0, 90.0, 110.0])) == pytest.approx(0.10)
+    assert technicals.period_return(pd.Series([100.0])) is None
+
+
+def test_entry_read_says_wait_when_overbought_even_in_an_uptrend():
+    summary = _summary(120.0, rsi=75.0, sma_50=110.0, sma_200=100.0)
+    assert technicals.entry_read(summary)["label"] == "Wait"
+
+
+def test_entry_read_says_wait_below_the_200_day_average():
+    assert technicals.entry_read(_summary(90.0, rsi=25.0, sma_200=100.0))["label"] == "Wait"
+
+
+def test_entry_read_is_cautious_about_a_pullback_in_an_uptrend():
+    summary = _summary(105.0, rsi=40.0, sma_50=110.0, sma_200=100.0)
+    assert technicals.entry_read(summary)["label"] == "Possible entry"
+
+
+def test_entry_read_likes_an_intact_uptrend():
+    summary = _summary(120.0, rsi=55.0, sma_50=110.0, sma_200=100.0)
+    assert technicals.entry_read(summary)["label"] == "Good entry"
+
+
+def test_entry_read_has_no_opinion_without_long_history():
+    assert technicals.entry_read(_summary(100.0))["label"] == "No clear signal"

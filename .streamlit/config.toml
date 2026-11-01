@@ -1,10 +1,10 @@
-# Fincent theme: "Black Ledger" — editorial market intelligence.
+# Fincent theme: near-black with a yellow accent.
 # Fine typography/border details are layered on top via ui.apply_theme()
 # CSS injection (config.toml alone can't set fonts beyond serif/sans/mono
 # or do hairline borders / delta colors).
 [theme]
 base = "dark"
-primaryColor = "#8E96FF"
+primaryColor = "#F5C41C"
 backgroundColor = "#050505"
 secondaryBackgroundColor = "#0B0B0D"
 textColor = "#F7F7F4"

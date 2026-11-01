@@ -209,7 +209,7 @@ PERSONAS: dict[str, str] = {
 
 
 class Profile:
-    """Short public description of a persona, shown in the Agents page."""
+    """Short public description of a persona, shown on the ticker page."""
 
     def __init__(self, name: str, group: str, summary: str):
         self.name = name
