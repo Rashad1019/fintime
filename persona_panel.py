@@ -79,14 +79,16 @@ def render(ticker: str, metrics: dict, quote: dict) -> None:
         [profile.name for _, profiles in profiles_by_group() for profile in profiles],
         format_func=_picker_label,
         placeholder="Choose one or more",
-        key="personas",
+        key=f"personas_{ticker}",
     )
+    # Answers belong to this viewer's current ticker, so every ticker starts blank.
+    if st.session_state.get("persona_run", {}).get("ticker") != ticker:
+        st.session_state.pop("persona_run", None)
     if st.button(f"Ask them about {ticker}", type="primary", disabled=not selected):
         _run(ticker, metrics, selected)
 
-    saved = db.latest_agent_run(ticker)
-    if saved:
-        _show_run(ticker, saved, quote)
+    if "persona_run" in st.session_state:
+        _show_run(ticker, st.session_state["persona_run"], quote)
 
 
 def _picker_label(name: str) -> str:
@@ -129,7 +131,9 @@ def _run(ticker: str, metrics: dict, names: list[str]) -> None:
             expanded=not answered,
         )
     if answered:
-        db.save_agent_run(ticker, prompt, [replies[name] for name in names])
+        results = [replies[name] for name in names]
+        db.save_agent_run(ticker, prompt, results)
+        st.session_state["persona_run"] = {"ticker": ticker, "prompt": prompt, "results": results}
         st.toast(f"{answered} of {len(names)} answered", icon="✅")
     else:
         st.error(_NETWORK_BUSY)
@@ -159,7 +163,6 @@ def _show_run(ticker: str, saved: dict, quote: dict) -> None:
         hide_index=True,
         width="stretch",
     )
-    st.caption(f"Last asked {saved['created_at']} UTC")
     for result in results:
         name = result["persona"]
         label = f"{name}: {result.get('verdict') or 'no verdict'}"
