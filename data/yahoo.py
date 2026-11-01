@@ -11,7 +11,7 @@ import logging
 import pandas as pd
 import yfinance as yf
 
-from data import DataSourceError, fallback_source, fmp_source
+from data import DataSourceError, fallback_source, fmp_source, fx
 from data.normalize import growth_fraction
 
 logger = logging.getLogger(__name__)
@@ -27,14 +27,6 @@ PROVIDERS = (PROVIDER_AUTO, SOURCE_YAHOO, SOURCE_FMP, SOURCE_FALLBACK)
 _FUND_QUOTE_TYPES = {"ETF", "MUTUALFUND"}
 _EQUITY_ROWS = ("Common Stock Equity", "Stockholders Equity")
 
-# Quote currencies that are a fraction of the reporting one: code -> (major, units per major).
-_SUBUNITS = {
-    "GBp": ("GBP", 100.0),
-    "GBX": ("GBP", 100.0),
-    "ZAc": ("ZAR", 100.0),
-    "ILA": ("ILS", 100.0),
-}
-
 
 def _quote_from_info(ticker: str, info: dict, price: float) -> dict:
     return {
@@ -46,9 +38,25 @@ def _quote_from_info(ticker: str, info: dict, price: float) -> dict:
     }
 
 
+def fundamentals_or_price(snapshot: dict) -> dict:
+    """Fundamentals from a snapshot, or a price-only set when the source has none.
+
+    The chart-API backup has a last price and no company figures. Callers can
+    still compute risk, technicals, and fund yields from prices and payouts.
+    """
+    fundamentals = snapshot.get("fundamentals")
+    if fundamentals is not None:
+        return fundamentals
+    quote = snapshot.get("quote") or {}
+    price = quote.get("price")
+    filled = _fundamentals_from_info({}, None if price is None else float(price))
+    filled["is_fund"] = bool(quote.get("is_fund"))
+    return filled
+
+
 def _fundamentals_from_info(
     info: dict,
-    price: float,
+    price: float | None,
     equity: float | None = None,
     fx_rate: float | None = 1.0,
 ) -> dict:
@@ -115,28 +123,6 @@ def _reported_equity(stock: yf.Ticker, ticker: str) -> float | None:
     return None
 
 
-def _fx_rate(source: str | None, target: str | None) -> float | None:
-    """Multiplier from source currency to target, or None if it can't be found.
-
-    Prices can be quoted in a subunit (BP.L trades in pence, GBp), which
-    needs its own scale on top of the exchange rate.
-    """
-    if not source or not target or source == target:
-        return 1.0
-    major, scale = _SUBUNITS.get(target, (target, 1.0))
-    if source == major:
-        return scale
-    try:
-        rate = yf.Ticker(f"{source}{major}=X").fast_info["lastPrice"]
-    except Exception:
-        logger.warning("FX fetch failed for %s to %s", source, major, exc_info=True)
-        return None
-    if not rate:
-        logger.warning("No FX rate for %s to %s", source, major)
-        return None
-    return float(rate) * scale
-
-
 def _snapshot_from_yfinance(ticker: str) -> dict | None:
     """Snapshot via the yfinance library, or None if it can't deliver."""
     try:
@@ -153,7 +139,7 @@ def _snapshot_from_yfinance(ticker: str) -> dict | None:
         return None
     price = float(price)
     equity = _reported_equity(stock, ticker) if info.get("quoteType") == "EQUITY" else None
-    fx_rate = _fx_rate(info.get("financialCurrency"), info.get("currency"))
+    fx_rate = fx.rate(info.get("financialCurrency"), info.get("currency"))
     return {
         "quote": _quote_from_info(ticker, info, price),
         "fundamentals": _fundamentals_from_info(info, price, equity, fx_rate),
@@ -164,13 +150,15 @@ def _snapshot_from_yfinance(ticker: str) -> dict | None:
 def _snapshot_from_chart_api(ticker: str) -> dict:
     """Price-only snapshot from Yahoo's raw chart API (no fundamentals)."""
     history = fallback_source.get_history(ticker, period="1mo")
+    meta = history.attrs.get("meta", {})
     return {
         "quote": {
             "ticker": ticker,
-            "name": ticker,
+            "name": meta.get("longName") or meta.get("shortName") or ticker,
             "price": float(history["Close"].iloc[-1]),
             "market_cap": None,
-            "currency": None,
+            "currency": meta.get("currency"),
+            "is_fund": meta.get("instrumentType") in _FUND_QUOTE_TYPES,
         },
         "fundamentals": None,
         "source": SOURCE_FALLBACK,
@@ -178,15 +166,21 @@ def _snapshot_from_chart_api(ticker: str) -> dict:
 
 
 def fetch_dividends(ticker: str) -> pd.Series:
-    """Cash dividends from Yahoo, or an empty series when none are available."""
+    """Cash dividends from yfinance, then the raw chart API.
+
+    Returns an empty series when neither has any.
+    """
     try:
         series = yf.Ticker(ticker).dividends
+        if series is not None and len(series) > 0:
+            return series
     except Exception:
         logger.warning("Dividend fetch failed for %s", ticker, exc_info=True)
+    try:
+        return fallback_source.get_dividends(ticker)
+    except DataSourceError:
+        logger.warning("Chart dividend fetch failed for %s", ticker, exc_info=True)
         return pd.Series(dtype=float)
-    if series is None or len(series) == 0:
-        return pd.Series(dtype=float)
-    return series
 
 
 def fetch_snapshot(ticker: str, provider: str = PROVIDER_AUTO) -> dict:

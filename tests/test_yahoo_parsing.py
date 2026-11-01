@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from data import DataSourceError, fallback_source, fmp_source, yahoo
+from data import DataSourceError, fallback_source, fmp_source, fx, yahoo
 
 FULL_INFO = {
     "longName": "Apple Inc.",
@@ -96,40 +96,94 @@ def test_fundamentals_blank_statements_without_an_fx_rate():
     assert fundamentals["eps"] == 6.0
 
 
-class _FxTicker:
-    rate = 0.03
-
-    def __init__(self, symbol):
-        self.symbol = symbol
-
-    @property
-    def fast_info(self):
-        return {"lastPrice": self.rate}
+def _closes(value: float) -> pd.DataFrame:
+    return pd.DataFrame({"Close": [value]})
 
 
 def test_fx_rate_is_one_when_currencies_match_or_are_missing():
-    assert yahoo._fx_rate("USD", "USD") == 1.0
-    assert yahoo._fx_rate(None, "USD") == 1.0
+    assert fx.rate("USD", "USD") == 1.0
+    assert fx.rate(None, "USD") == 1.0
 
 
 def test_fx_rate_uses_the_pair_quote(monkeypatch):
-    monkeypatch.setattr(yahoo.yf, "Ticker", _FxTicker)
-    assert yahoo._fx_rate("TWD", "USD") == 0.03
+    seen = []
+
+    def fake_history(symbol, period):
+        seen.append(symbol)
+        return _closes(0.03)
+
+    monkeypatch.setattr(fallback_source, "get_history", fake_history)
+    assert fx.rate("TWD", "USD") == 0.03
+    assert seen == ["TWDUSD=X"]
 
 
 def test_fx_rate_scales_subunit_quotes(monkeypatch):
-    monkeypatch.setattr(yahoo.yf, "Ticker", _FxTicker)
-    assert yahoo._fx_rate("GBP", "GBp") == 100.0
-    assert yahoo._fx_rate("USD", "GBp") == pytest.approx(3.0)
+    monkeypatch.setattr(fallback_source, "get_history", lambda symbol, period: _closes(0.03))
+    assert fx.rate("GBP", "GBp") == 100.0
+    assert fx.rate("USD", "GBp") == pytest.approx(3.0)
 
 
 def test_fx_rate_is_none_when_the_pair_fails(monkeypatch):
-    class Broken:
-        def __init__(self, symbol):
-            raise RuntimeError("down")
+    def broken(symbol, period):
+        raise DataSourceError("down")
 
-    monkeypatch.setattr(yahoo.yf, "Ticker", Broken)
-    assert yahoo._fx_rate("TWD", "USD") is None
+    monkeypatch.setattr(fallback_source, "get_history", broken)
+    assert fx.rate("TWD", "USD") is None
+
+
+def test_chart_snapshot_reads_name_currency_and_fund_type(monkeypatch):
+    history = _closes(51.66)
+    history.attrs["meta"] = {"longName": "NEOS Income ETF", "currency": "USD", "instrumentType": "ETF"}
+    monkeypatch.setattr(fallback_source, "get_history", lambda ticker, period: history)
+
+    snapshot = yahoo.fetch_snapshot("QQQI", yahoo.SOURCE_FALLBACK)
+
+    assert snapshot["quote"]["name"] == "NEOS Income ETF"
+    assert snapshot["quote"]["currency"] == "USD"
+    filled = yahoo.fundamentals_or_price(snapshot)
+    assert filled["is_fund"] is True
+    assert filled["price"] == 51.66
+    assert filled["eps"] is None
+
+
+def test_fundamentals_or_price_returns_real_fundamentals_untouched():
+    fundamentals = {"price": 10.0}
+    assert yahoo.fundamentals_or_price({"fundamentals": fundamentals}) is fundamentals
+
+
+def test_fetch_dividends_falls_back_to_the_chart_api(monkeypatch):
+    payouts = pd.Series([1.0], index=pd.to_datetime(["2026-01-01"]))
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenTicker)
+    monkeypatch.setattr(fallback_source, "get_dividends", lambda ticker: payouts)
+    assert yahoo.fetch_dividends("QQQI").equals(payouts)
+
+
+def test_fetch_dividends_is_empty_when_every_source_fails(monkeypatch):
+    def broken(ticker):
+        raise DataSourceError("down")
+
+    monkeypatch.setattr(yahoo.yf, "Ticker", _BrokenTicker)
+    monkeypatch.setattr(fallback_source, "get_dividends", broken)
+    assert len(yahoo.fetch_dividends("QQQI")) == 0
+
+
+def test_chart_dividends_parse_events_in_date_order(monkeypatch):
+    payload = {"chart": {"result": [{"events": {"dividends": {
+        "2": {"amount": 0.5, "date": 1_700_000_000},
+        "1": {"amount": 0.4, "date": 1_690_000_000},
+    }}}]}}
+    monkeypatch.setattr(
+        fallback_source.requests, "get", lambda *a, **kw: _FakeChartResponse(payload)
+    )
+    assert fallback_source.get_dividends("QQQI").tolist() == [0.4, 0.5]
+
+
+def test_chart_dividends_are_empty_for_a_non_payer(monkeypatch):
+    payload = {"chart": {"result": [{}]}}
+    monkeypatch.setattr(
+        fallback_source.requests, "get", lambda *a, **kw: _FakeChartResponse(payload)
+    )
+    assert len(fallback_source.get_dividends("TSLA")) == 0
 
 
 class _SheetTicker:

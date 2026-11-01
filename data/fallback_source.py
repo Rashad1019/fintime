@@ -52,4 +52,28 @@ def get_history(ticker: str, period: str = "1y", interval: str = "1d") -> pd.Dat
     )
     if df.empty:
         raise DataSourceError(f"Fallback source has no price data for '{ticker}'")
+    df.attrs["meta"] = result.get("meta", {})
     return df
+
+
+def get_dividends(ticker: str) -> pd.Series:
+    """Cash dividends from Yahoo's chart endpoint. Empty when there are none."""
+    try:
+        response = requests.get(
+            CHART_URL.format(symbol=ticker.upper()),
+            params={"range": "max", "interval": "1mo", "events": "div"},
+            headers=_HEADERS,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        result = response.json()["chart"]["result"][0]
+        events = result.get("events", {}).get("dividends", {}).values()
+        rows = [(event["date"], float(event["amount"])) for event in events]
+    except Exception as exc:
+        raise DataSourceError(
+            f"Fallback dividend fetch failed for '{ticker}': {exc}"
+        ) from exc
+
+    if not rows:
+        return pd.Series(dtype=float)
+    dates, amounts = zip(*rows)
+    return pd.Series(amounts, index=pd.to_datetime(dates, unit="s"), dtype=float).sort_index()

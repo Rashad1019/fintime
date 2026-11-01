@@ -19,6 +19,7 @@ from config import (
     RISK_HISTORY_PERIOD,
 )
 from data import DataSourceError, cache
+from data import yahoo
 from storage import db
 
 def _history_or_empty(symbol: str, period: str, data_provider: str) -> pd.Series:
@@ -106,13 +107,13 @@ if st.button("Run analysis", type="primary") and ticker and selected:
         st.stop()
 
     ui.show_source_banner(snapshot["source"], provider)
-    fundamentals = snapshot["fundamentals"]
-    if fundamentals is None:
-        st.error(
-            f"No fundamentals available for '{ticker}' right now — the personas "
-            "need real numbers to analyze."
+    fundamentals = yahoo.fundamentals_or_price(snapshot)
+    if snapshot["fundamentals"] is None:
+        st.info(
+            "Company figures are missing. The personas will use the last price, "
+            "payouts, and the risk and technical numbers from the price history. "
+            "Earnings, cash flow, and the DCF stay blank."
         )
-        st.stop()
 
     metrics = assemble_metrics(
         fundamentals,

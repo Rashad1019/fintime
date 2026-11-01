@@ -347,16 +347,16 @@ def show_source_banner(source: str, provider: str) -> None:
         elif source == yahoo.SOURCE_FALLBACK:
             st.warning(
                 "Yahoo Finance and the FMP backup are both unavailable — "
-                "showing the last close from the Yahoo chart API. Name, "
-                "market cap, and fundamentals are missing."
+                "showing the last close from the Yahoo chart API. Market "
+                "cap and fundamentals are missing."
             )
         return
     name = _SOURCE_NAMES.get(source, source)
     st.caption(f"Data source: {name} (selected in the sidebar).")
     if source == yahoo.SOURCE_FALLBACK:
         st.warning(
-            "The backup chart API only provides prices — name, market cap, "
-            "and fundamentals are unavailable on this provider."
+            "The backup chart API only provides prices — market cap and "
+            "fundamentals are unavailable on this provider."
         )
 
 

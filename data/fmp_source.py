@@ -17,7 +17,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-from data import DataSourceError
+from data import DataSourceError, fx
 
 load_dotenv()
 
@@ -130,6 +130,22 @@ def get_snapshot(ticker: str) -> dict:
             raise DataSourceError(f"FMP has no price for '{ticker}'")
         price = float(price)
 
+        fx_rate = fx.rate(income.get("reportedCurrency"), profile.get("currency"))
+
+        def converted(value: float | None) -> float | None:
+            return None if value is None or fx_rate is None else value * fx_rate
+
+        # Market cap over price counts every share class in trading units,
+        # so an ADR's per-share figures line up with its price.
+        market_cap = profile.get("marketCap")
+        shares = market_cap / price if market_cap else income.get("weightedAverageShsOut")
+        net_income = converted(income.get("netIncome"))
+        equity = converted(balance.get("totalStockholdersEquity"))
+        eps = income.get("eps")
+        if fx_rate != 1.0:
+            # Reported EPS is per ordinary share in the reporting currency.
+            eps = net_income / shares if net_income is not None and shares else None
+
         quote = {
             "ticker": ticker,
             "name": profile.get("companyName") or ticker,
@@ -140,16 +156,16 @@ def get_snapshot(ticker: str) -> dict:
         fundamentals = {
             "price": price,
             "market_cap": profile.get("marketCap"),
-            "eps": income.get("eps"),
+            "eps": eps,
             "dividend_yield": ratios.get("dividendYield"),
             "payout_ratio": ratios.get("dividendPayoutRatio"),
-            "book_value_per_share": ratios.get("bookValuePerShare"),
-            "net_income": income.get("netIncome"),
-            "shareholder_equity": balance.get("totalStockholdersEquity"),
-            "total_debt": balance.get("totalDebt"),
-            "revenue": income.get("revenue"),
-            "free_cash_flow": cash_flow.get("freeCashFlow"),
-            "shares_outstanding": income.get("weightedAverageShsOut"),
+            "book_value_per_share": equity / shares if equity is not None and shares else None,
+            "net_income": net_income,
+            "shareholder_equity": equity,
+            "total_debt": converted(balance.get("totalDebt")),
+            "revenue": converted(income.get("revenue")),
+            "free_cash_flow": converted(cash_flow.get("freeCashFlow")),
+            "shares_outstanding": shares,
             "earnings_growth": _earnings_growth(income_rows),
         }
     except DataSourceError:

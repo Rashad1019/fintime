@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from data import DataSourceError, fmp_source
+from data import DataSourceError, fallback_source, fmp_source
 
 
 class _FakeResponse:
@@ -61,7 +61,63 @@ def test_get_snapshot_maps_all_fields(monkeypatch):
     assert fundamentals["dividend_yield"] == 0.0325
     assert fundamentals["shareholder_equity"] == 64_000_000_000
     assert fundamentals["free_cash_flow"] == 100_000_000_000
-    assert fundamentals["shares_outstanding"] == 16_000_000_000
+    assert fundamentals["shares_outstanding"] == pytest.approx(2_500_000_000_000 / 150.0)
+
+
+def test_get_snapshot_converts_a_foreign_filer_to_the_trading_currency(monkeypatch):
+    monkeypatch.setenv("FMP_API_KEY", "test-key")
+    _mock_get(
+        monkeypatch,
+        {
+            "profile": [{"companyName": "ADR Co", "price": 100.0, "marketCap": 1_000.0, "currency": "USD"}],
+            "income-statement": [
+                {"eps": 500.0, "netIncome": 1_000.0, "revenue": 4_000.0, "reportedCurrency": "TWD"}
+            ],
+            "balance-sheet-statement": [{"totalStockholdersEquity": 3_000.0, "totalDebt": 400.0}],
+            "cash-flow-statement": [{"freeCashFlow": 800.0}],
+            "ratios": RATIOS,
+        },
+    )
+    monkeypatch.setattr(
+        fallback_source,
+        "get_history",
+        lambda symbol, period: pd.DataFrame({"Close": [0.03]}),
+    )
+
+    fundamentals = fmp_source.get_snapshot("ADR")["fundamentals"]
+
+    assert fundamentals["shares_outstanding"] == 10.0
+    assert fundamentals["net_income"] == pytest.approx(30.0)
+    assert fundamentals["free_cash_flow"] == pytest.approx(24.0)
+    assert fundamentals["shareholder_equity"] == pytest.approx(90.0)
+    assert fundamentals["book_value_per_share"] == pytest.approx(9.0)
+    assert fundamentals["eps"] == pytest.approx(3.0)
+
+
+def test_get_snapshot_blanks_statements_without_an_fx_rate(monkeypatch):
+    monkeypatch.setenv("FMP_API_KEY", "test-key")
+    _mock_get(
+        monkeypatch,
+        {
+            "profile": [{"companyName": "ADR Co", "price": 100.0, "marketCap": 1_000.0, "currency": "USD"}],
+            "income-statement": [{"eps": 500.0, "netIncome": 1_000.0, "reportedCurrency": "TWD"}],
+            "balance-sheet-statement": [{"totalStockholdersEquity": 3_000.0, "totalDebt": 400.0}],
+            "cash-flow-statement": [{"freeCashFlow": 800.0}],
+            "ratios": RATIOS,
+        },
+    )
+
+    def broken(symbol, period):
+        raise DataSourceError("down")
+
+    monkeypatch.setattr(fallback_source, "get_history", broken)
+
+    fundamentals = fmp_source.get_snapshot("ADR")["fundamentals"]
+
+    assert fundamentals["eps"] is None
+    assert fundamentals["net_income"] is None
+    assert fundamentals["book_value_per_share"] is None
+    assert fundamentals["price"] == 100.0
 
 
 def test_get_snapshot_raises_without_api_key(monkeypatch):

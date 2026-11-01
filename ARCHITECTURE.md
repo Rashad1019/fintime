@@ -42,7 +42,9 @@ One `yf.Ticker(t).info` call produces both quote and fundamentals, so they can
 never disagree and the API is hit half as often. Stocks add one balance-sheet
 call for equity, and one FX call when the company reports in a different
 currency than its shares trade in. Fundamentals are always in the trading
-currency, so per-share figures can be compared with the price.
+currency, so per-share figures can be compared with the price. FMP data gets
+the same treatment. FX rates and backup dividends come from the raw chart API,
+which still answers on hosts where the yfinance library is blocked.
 
 ## Design decisions (and why)
 
