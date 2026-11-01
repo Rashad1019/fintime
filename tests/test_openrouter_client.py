@@ -42,7 +42,6 @@ def _patch_post(monkeypatch, responses):
 def api_key_env(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
-    monkeypatch.delenv("OPENROUTER_MODELS", raising=False)
 
 
 def test_missing_api_key_raises(monkeypatch):
@@ -51,15 +50,27 @@ def test_missing_api_key_raises(monkeypatch):
         ask("system", "user")
 
 
-def test_rotates_to_next_model_on_429(monkeypatch):
+def _attempt_models():
+    return [model for model, _ in openrouter_client.PERSONA_ATTEMPTS]
+
+
+def test_the_order_is_one_free_model_then_three_paid():
+    assert [seconds for _, seconds in openrouter_client.PERSONA_ATTEMPTS] == [30, 90, 90, 120]
+    models = _attempt_models()
+    assert models[0].endswith(":free")
+    assert not any(model.endswith(":free") for model in models[1:])
+    assert len(set(models)) == 4
+
+
+def test_moves_to_next_model_on_429(monkeypatch):
     models_called = _patch_post(
         monkeypatch, [FakeResponse(429), FakeResponse(200, content="reply")]
     )
     assert ask("system", "user") == "reply"
-    assert models_called == openrouter_client.FREE_MODEL_FALLBACKS[:2]
+    assert models_called == _attempt_models()[:2]
 
 
-def test_rotates_past_removed_model_on_404(monkeypatch):
+def test_moves_past_removed_model_on_404(monkeypatch):
     models_called = _patch_post(
         monkeypatch, [FakeResponse(404), FakeResponse(200, content="reply")]
     )
@@ -68,33 +79,24 @@ def test_rotates_past_removed_model_on_404(monkeypatch):
 
 
 def test_all_models_unavailable_raises(monkeypatch):
-    count = len(openrouter_client._models_to_try())
-    _patch_post(monkeypatch, [FakeResponse(429) for _ in range(count)])
-    with pytest.raises(OpenRouterError, match="paid fallback failed"):
+    models_called = _patch_post(monkeypatch, [FakeResponse(429) for _ in range(4)])
+    with pytest.raises(OpenRouterError, match="Every model failed"):
         ask("system", "user")
+    assert models_called == _attempt_models()
 
 
-def test_paid_model_is_used_after_free_models_fail(monkeypatch):
-    free_count = len(openrouter_client.FREE_MODEL_FALLBACKS)
-    models_called = _patch_post(
+def test_on_last_try_fires_only_when_the_final_model_starts(monkeypatch):
+    calls = []
+    _patch_post(monkeypatch, [FakeResponse(429), FakeResponse(200, content="reply")])
+    ask("system", "user", on_last_try=lambda: calls.append(1))
+    assert calls == []
+
+    _patch_post(
         monkeypatch,
-        [FakeResponse(404) for _ in range(free_count)]
-        + [FakeResponse(200, content="paid reply")],
+        [FakeResponse(429), FakeResponse(429), FakeResponse(429), FakeResponse(200, content="reply")],
     )
-    assert ask("system", "user") == "paid reply"
-    assert models_called[-1] == openrouter_client.PAID_MODEL_FALLBACK
-    assert models_called[:-1] == openrouter_client.FREE_MODEL_FALLBACKS
-
-
-def test_empty_paid_model_disables_fallback(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_PAID_MODEL", "")
-    count = len(openrouter_client.FREE_MODEL_FALLBACKS)
-    models_called = _patch_post(
-        monkeypatch, [FakeResponse(429) for _ in range(count)]
-    )
-    with pytest.raises(OpenRouterError, match="currently unavailable"):
-        ask("system", "user")
-    assert openrouter_client.PAID_MODEL_FALLBACK not in models_called
+    ask("system", "user", on_last_try=lambda: calls.append(1))
+    assert calls == [1]
 
 
 def test_non_retryable_error_raises_immediately(monkeypatch):
@@ -109,15 +111,6 @@ def test_openrouter_model_env_pins_single_model(monkeypatch):
     models_called = _patch_post(monkeypatch, [FakeResponse(200, content="reply")])
     assert ask("system", "user") == "reply"
     assert models_called == ["some/pinned-model"]
-
-
-def test_openrouter_models_env_overrides_rotation_list(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_MODELS", "a/one:free, b/two:free")
-    models_called = _patch_post(
-        monkeypatch, [FakeResponse(429), FakeResponse(200, content="reply")]
-    )
-    assert ask("system", "user") == "reply"
-    assert models_called == ["a/one:free", "b/two:free"]
 
 
 @pytest.mark.parametrize(
@@ -138,22 +131,14 @@ def test_rotates_past_a_model_that_fails(monkeypatch, failure):
     assert len(models_called) == 2
 
 
-def test_a_model_sending_keep_alive_bytes_is_cut_off_at_the_deadline(monkeypatch):
+def test_a_model_sending_keep_alive_bytes_is_cut_off_at_its_limit(monkeypatch):
     class Dripping(FakeResponse):
         def iter_content(self, chunk_size):
             while True:
                 yield b" "
 
-    monkeypatch.setattr(openrouter_client, "MODEL_DEADLINE_SECONDS", 0.01)
     models_called = _patch_post(
         monkeypatch, [Dripping(200), FakeResponse(200, content="reply")]
     )
-    assert ask("system", "user") == "reply"
-    assert len(models_called) == 2
-
-
-def test_a_long_rotation_jumps_to_the_last_model(monkeypatch):
-    monkeypatch.setattr(openrouter_client, "ROTATION_SECONDS", -1)
-    models_called = _patch_post(monkeypatch, [FakeResponse(200, content="reply")])
-    assert ask("system", "user") == "reply"
-    assert models_called == [openrouter_client.PAID_MODEL_FALLBACK]
+    assert ask("system", "user", [("a/slow", 0.01), ("b/next", 1)]) == "reply"
+    assert models_called == ["a/slow", "b/next"]

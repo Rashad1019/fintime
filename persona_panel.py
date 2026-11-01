@@ -1,7 +1,10 @@
 """The investor personas section, shared by the dashboard and the Agents page."""
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import random
+import threading
+from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import pandas as pd
 import streamlit as st
@@ -26,6 +29,14 @@ from storage import db
 logger = logging.getLogger(__name__)
 
 _MAX_PARALLEL_ASKS = 8
+_NETWORK_BUSY = "The network is busy right now. Please try again in a few minutes."
+_JOKES = [
+    "Why did the investor bring a ladder to work? They heard the market was reaching new highs.",
+    "What's the difference between a bond and a bond trader? A bond eventually matures.",
+    "Why don't bears get invited to parties? They always expect things to go down.",
+    "I asked my broker for a stock that would let me sleep at night. They sold me a mattress company.",
+    "My long-term investing plan is simple: buy low, then check my account a lot less often.",
+]
 
 
 def metrics_for(ticker: str, fundamentals: dict, closes: pd.Series, provider: str) -> dict:
@@ -85,21 +96,32 @@ def _picker_label(name: str) -> str:
 def _run(ticker: str, metrics: dict, names: list[str]) -> None:
     prompt = build_prompt(ticker, metrics)
     replies = {}
+    last_try = threading.Event()
     # The toast shows wherever the viewer has scrolled to.
     st.toast(f"Asking {len(names)} about {ticker}...", icon="⏳")
-    with st.status(f"Asking about {ticker}. This can take a minute or two...", expanded=True) as status:
+    with st.status(f"Asking about {ticker}. This can take a few minutes...", expanded=True) as status:
         lines = {name: st.empty() for name in names}
         for name, line in lines.items():
             line.markdown(f"⏳ {name} is reading the numbers...")
+        joke = st.empty()
+        joke_told = False
         # Workers call only pure agent code, and each ask ends at its own deadline.
         with ThreadPoolExecutor(max_workers=_MAX_PARALLEL_ASKS) as pool:
-            futures = {pool.submit(_ask, name, prompt): name for name in names}
-            for finished in as_completed(futures):
-                name = futures[finished]
-                replies[name] = finished.result()
-                done = f"✅ {name} has answered" if replies[name]["reply"] else f"⚠️ {name} could not be reached"
-                lines[name].markdown(done)
-                status.update(label=f"{len(replies)} of {len(names)} answered...", expanded=True)
+            futures = {pool.submit(_ask, name, prompt, last_try.set): name for name in names}
+            pending = set(futures)
+            while pending:
+                finished, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+                for future in finished:
+                    name = futures[future]
+                    replies[name] = future.result()
+                    lines[name].markdown(
+                        f"✅ {name} has answered" if replies[name]["reply"]
+                        else f"⚠️ {name}: the network is busy"
+                    )
+                    status.update(label=f"{len(replies)} of {len(names)} answered...", expanded=True)
+                if last_try.is_set() and not joke_told:
+                    joke_told = True
+                    joke.info(f"This is taking a while, so here's a joke:\n\n{random.choice(_JOKES)}")
         answered = sum(1 for result in replies.values() if result["reply"])
         status.update(
             label=f"{answered} of {len(names)} answered",
@@ -110,12 +132,12 @@ def _run(ticker: str, metrics: dict, names: list[str]) -> None:
         db.save_agent_run(ticker, prompt, [replies[name] for name in names])
         st.toast(f"{answered} of {len(names)} answered", icon="✅")
     else:
-        st.error("The investors could not be reached right now. Try again in a minute.")
+        st.error(_NETWORK_BUSY)
 
 
-def _ask(name: str, prompt: str) -> dict:
+def _ask(name: str, prompt: str, on_last_try: Callable[[], None]) -> dict:
     try:
-        reply = openrouter_client.ask(PERSONAS[name], prompt)
+        reply = openrouter_client.ask(PERSONAS[name], prompt, on_last_try=on_last_try)
     except openrouter_client.OpenRouterError as exc:
         logger.warning("Persona %s failed: %s", name, exc)
         return {"persona": name, "reply": None, "verdict": None, "conviction": None, "error": str(exc)}
@@ -148,7 +170,7 @@ def _show_run(ticker: str, saved: dict, quote: dict) -> None:
             if result.get("reply"):
                 st.markdown(escape_dollars(result["reply"]))
             else:
-                st.error("This investor could not be reached.")
+                st.error("The network was busy, so this investor could not answer.")
     with st.expander("Numbers given to the personas"):
         st.code(saved["prompt"])
         st.caption(

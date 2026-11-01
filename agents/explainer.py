@@ -37,7 +37,10 @@ def build_prompt(ticker: str, profile: dict) -> str:
 
 def explain(ticker: str, profile: dict) -> str:
     """Raises OpenRouterError when no model can answer."""
-    return openrouter_client.ask(_SYSTEM, build_prompt(ticker, profile)).strip()
+    reply = openrouter_client.ask(
+        _SYSTEM, build_prompt(ticker, profile), openrouter_client.EXPLANATION_ATTEMPTS
+    )
+    return reply.strip()
 
 
 def fallback_text(ticker: str, profile: dict) -> str:

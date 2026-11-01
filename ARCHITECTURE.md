@@ -59,7 +59,7 @@ which still answers on hosts where the yfinance library is blocked.
 | `config.py` owns DCF assumptions and period lists | Analytics and Agents previously had separate copies that could silently drift |
 | `formatting.py` is used by both pages and persona prompts | One percent/ratio/money format everywhere; prompt numbers match what the UI shows |
 | `storage/db.py` resolves path: argument → `FINCENT_DB_PATH` → project root | Tests use `tmp_path` and can never touch the real database |
-| `OPENROUTER_MODELS` env var overrides the hardcoded free-model rotation | Free-tier models get removed upstream; refresh the list without a code change |
+| Persona calls try one free model, then three paid models, each with its own time limit (`PERSONA_ATTEMPTS`) | Free models are slow and crowded, and paid models from different companies keep one outage from failing a run |
 | Analytics returns `None` for undefined (P/E with negative EPS), raises `ValueError` for invalid input, data layer raises `DataSourceError` | "No answer" and "bad request" and "source down" are different situations and pages handle them differently |
 
 ## Error-handling conventions

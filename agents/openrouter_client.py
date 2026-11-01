@@ -2,18 +2,14 @@
 
 Environment (from the shell or a local .env file — never hardcode the key):
   OPENROUTER_API_KEY  required.
-  OPENROUTER_MODEL       optional — use exactly this one model. No paid fallback.
-  OPENROUTER_MODELS      optional — comma-separated rotation list, overriding
-                         FREE_MODEL_FALLBACKS. Free-tier models come and go, so
-                         this lets you refresh the list without touching code.
-  OPENROUTER_PAID_MODEL  optional — model to try after every free model fails.
-                         Defaults to PAID_MODEL_FALLBACK. Set it empty to skip.
+  OPENROUTER_MODEL    optional — use exactly this one model, with no other tries.
 """
 
 import json
 import logging
 import os
 import time
+from collections.abc import Callable
 
 import requests
 from dotenv import load_dotenv
@@ -24,28 +20,21 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 CONNECT_TIMEOUT_SECONDS = 10
-READ_TIMEOUT_SECONDS = 20
-# A read timeout only covers the gap between bytes, and a model that is still
-# queued can send keep-alive bytes forever. This caps one model's whole reply.
-MODEL_DEADLINE_SECONDS = 40
-# After this long, skip the rest of the rotation and go to the last model.
-ROTATION_SECONDS = 50
 
-# Free-tier models get rate-limited upstream minute to minute, so try these
-# in order and move to the next on any failure that another model could avoid.
-# Named free models first. openrouter/free is last: it routes to whatever
-# free model is still up when a specific slug has been removed.
-FREE_MODEL_FALLBACKS = [
-    "google/gemma-4-31b-it:free",
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "thinkingmachines/inkling:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "openrouter/free",
+# Each try is (model, seconds allowed for its whole reply). One free model
+# first, then paid models from different companies, so one outage can't sink
+# a run. All three cost under $1 per million tokens written.
+PERSONA_ATTEMPTS = [
+    ("google/gemma-4-31b-it:free", 30),
+    ("google/gemma-4-31b-it", 90),
+    ("anthropic/claude-haiku-5.5", 90),
+    ("openai/gpt-6-luna", 120),
 ]
-# Used only after the free rotation is exhausted, so credits are spent on a
-# persona run that would otherwise fail. Gemma 4 31B is the paid form of the
-# first free model: about $0.20 / $0.40 per million tokens.
-PAID_MODEL_FALLBACK = "google/gemma-4-31b-it"
+# The explanation holds up the page and has a fallback, so it gets less time.
+EXPLANATION_ATTEMPTS = [
+    ("google/gemma-4-31b-it:free", 30),
+    ("google/gemma-4-31b-it", 30),
+]
 _RETRYABLE_STATUS_CODES = {404, 429, 500, 502, 503, 504}
 
 
@@ -53,28 +42,13 @@ class OpenRouterError(Exception):
     """Raised when the OpenRouter call cannot be completed."""
 
 
-def _paid_model() -> str | None:
-    if "OPENROUTER_PAID_MODEL" in os.environ:
-        return os.environ["OPENROUTER_PAID_MODEL"].strip() or None
-    return PAID_MODEL_FALLBACK
-
-
-def _models_to_try() -> list[str]:
-    single = os.getenv("OPENROUTER_MODEL")
-    if single:
-        return [single]
-    env_list = os.getenv("OPENROUTER_MODELS", "")
-    models = [model.strip() for model in env_list.split(",") if model.strip()]
-    models = models or list(FREE_MODEL_FALLBACKS)
-    paid = _paid_model()
-    if paid and paid not in models:
-        models.append(paid)
-    return models
-
-
-def _call(api_key: str, model: str, system_prompt: str, user_prompt: str) -> tuple[int, str]:
+def _call(
+    api_key: str, model: str, seconds: float, system_prompt: str, user_prompt: str
+) -> tuple[int, str]:
     """Return (status code, body), raising requests.Timeout past the deadline."""
-    deadline = time.monotonic() + MODEL_DEADLINE_SECONDS
+    # The read timeout alone isn't enough: it restarts with every byte, and a
+    # queued model can send keep-alive bytes forever.
+    deadline = time.monotonic() + seconds
     response = requests.post(
         OPENROUTER_URL,
         headers={"Authorization": f"Bearer {api_key}"},
@@ -85,7 +59,7 @@ def _call(api_key: str, model: str, system_prompt: str, user_prompt: str) -> tup
                 {"role": "user", "content": user_prompt},
             ],
         },
-        timeout=(CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS),
+        timeout=(CONNECT_TIMEOUT_SECONDS, seconds),
         stream=True,
     )
     with response:
@@ -93,7 +67,7 @@ def _call(api_key: str, model: str, system_prompt: str, user_prompt: str) -> tup
         for chunk in response.iter_content(chunk_size=1024):
             body.extend(chunk)
             if time.monotonic() > deadline:
-                raise requests.Timeout(f"No full reply in {MODEL_DEADLINE_SECONDS}s")
+                raise requests.Timeout(f"No full reply in {seconds}s")
     return response.status_code, body.decode("utf-8", errors="replace")
 
 
@@ -106,12 +80,16 @@ def _reply_text(body: str) -> str | None:
     return content if content and content.strip() else None
 
 
-def ask(system_prompt: str, user_prompt: str) -> str:
+def ask(
+    system_prompt: str,
+    user_prompt: str,
+    attempts: list[tuple[str, float]] = PERSONA_ATTEMPTS,
+    on_last_try: Callable[[], None] | None = None,
+) -> str:
     """Send one system+user exchange to OpenRouter and return the reply text.
 
-    Free models are tried in order. If every one fails or the rotation runs
-    long, the paid fallback is tried once so the run can spend credits instead
-    of failing. OPENROUTER_MODEL skips that fallback.
+    Tries each model in attempts in order, moving on when one fails or runs out
+    of time. on_last_try is called just before the final try starts.
     """
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -119,22 +97,24 @@ def ask(system_prompt: str, user_prompt: str) -> str:
             "OPENROUTER_API_KEY is not set. Copy .env.example to .env and add your key."
         )
 
+    pinned = os.getenv("OPENROUTER_MODEL")
+    if pinned:
+        attempts = [(pinned, attempts[-1][1])]
+
     last_error = None
-    models = _models_to_try()
-    rotation_ends = time.monotonic() + ROTATION_SECONDS
-    for model in models:
-        if time.monotonic() > rotation_ends and model != models[-1]:
-            continue
+    for number, (model, seconds) in enumerate(attempts, start=1):
+        if on_last_try and number == len(attempts) > 1:
+            on_last_try()
         try:
-            status, body = _call(api_key, model, system_prompt, user_prompt)
+            status, body = _call(api_key, model, seconds, system_prompt, user_prompt)
         except requests.RequestException as exc:
             last_error = f"{model} did not answer: {exc}"
-            logger.warning("Rotating past model: %s", last_error)
+            logger.warning("Moving past model: %s", last_error)
             continue
 
         if status in _RETRYABLE_STATUS_CODES:
             last_error = f"{model} unavailable (HTTP {status}): {body[:200]}"
-            logger.warning("Rotating past model: %s", last_error)
+            logger.warning("Moving past model: %s", last_error)
             continue
         if status != 200:
             raise OpenRouterError(f"OpenRouter returned HTTP {status}: {body[:300]}")
@@ -142,19 +122,6 @@ def ask(system_prompt: str, user_prompt: str) -> str:
         if reply is not None:
             return reply
         last_error = f"{model} sent no reply: {body[:200]}"
-        logger.warning("Rotating past model: %s", last_error)
+        logger.warning("Moving past model: %s", last_error)
 
-    paid = _paid_model()
-    tried_paid = paid and paid in _models_to_try() and not os.getenv("OPENROUTER_MODEL")
-    if tried_paid:
-        summary = (
-            "Every free model failed, and the paid fallback failed too. "
-            "Check OpenRouter credits, or set OPENROUTER_PAID_MODEL to a model "
-            "your key can call."
-        )
-    else:
-        summary = (
-            "All models in the rotation are currently unavailable — wait a minute "
-            "and retry, or set OPENROUTER_MODELS in .env to a fresh list."
-        )
-    raise OpenRouterError(f"{summary} Last error: {last_error}")
+    raise OpenRouterError(f"Every model failed. Last error: {last_error}")
