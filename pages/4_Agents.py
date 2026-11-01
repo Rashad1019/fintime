@@ -20,6 +20,7 @@ from config import (
 )
 from data import DataSourceError, cache
 from data import yahoo
+from formatting import escape_dollars
 from storage import db
 
 def _history_or_empty(symbol: str, period: str, data_provider: str) -> pd.Series:
@@ -53,7 +54,7 @@ def _show_replacements(symbol: str, data_provider: str, results: list[dict]) -> 
     labels = {"role": "In its place", "price": "Close in price"}
     for column, pick in zip(columns, picks):
         column.markdown(f"**{labels[pick['slot']]} · {pick['ticker']}**")
-        column.caption(pick["reason"])
+        column.caption(escape_dollars(pick["reason"]))
 
 
 def _show_comparison(results: list[dict]) -> None:
@@ -174,5 +175,5 @@ for result in saved["results"]:
     if result.get("error"):
         st.error(result["error"])
     elif result.get("reply"):
-        st.markdown(result["reply"])
+        st.markdown(escape_dollars(result["reply"]))
 

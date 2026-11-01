@@ -43,10 +43,27 @@ def get_dividends(ticker: str) -> pd.Series:
     return yahoo.fetch_dividends(ticker)
 
 
+class _IncompleteMacro(Exception):
+    """Raised to keep a partial result out of the long-lived cache."""
+
+
 @st.cache_data(ttl=60 * 60 * 12, show_spinner=False)
+def _complete_macro() -> dict:
+    result = macro.fetch_macro()
+    if None in result.values():
+        raise _IncompleteMacro(result)
+    return result
+
+
 def get_macro() -> dict:
-    """Cached 10-year yield and CPI inflation. Missing series are None."""
-    return macro.fetch_macro()
+    """10-year yield and CPI inflation, cached once both are in hand.
+
+    Missing series are None, and the next run tries them again.
+    """
+    try:
+        return _complete_macro()
+    except _IncompleteMacro as incomplete:
+        return incomplete.args[0]
 
 
 def _snapshot_or_none(ticker: str, provider: str) -> dict | None:

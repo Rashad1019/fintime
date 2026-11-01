@@ -1,6 +1,11 @@
 """Display formatting shared by the Streamlit pages and persona prompts."""
 
 
+def escape_dollars(text: str) -> str:
+    """Stop Streamlit markdown reading a pair of $ signs as a math formula."""
+    return text.replace("$", r"\$")
+
+
 def fmt_ratio(value: float | None) -> str:
     return "N/A" if value is None else f"{value:,.2f}"
 

@@ -4,6 +4,7 @@ import pytest
 from agents.metrics import assemble_metrics
 from agents.verdicts import parse_verdict
 from analytics.dividends import dividend_yield_range, trailing_yield
+from data import DataSourceError, fallback_source, macro
 from data.macro import inflation_yoy
 
 AS_OF = pd.Timestamp("2026-10-31")
@@ -173,6 +174,77 @@ def test_assemble_metrics_includes_peg_and_both_dcf_cases():
 
 
 def test_inflation_yoy_compares_with_twelve_months_earlier():
-    cpi = pd.Series([100.0] * 12 + [103.0])
+    months = pd.date_range("2025-01-01", periods=13, freq="MS")
+    cpi = pd.Series([100.0] * 12 + [103.0], index=months)
     assert inflation_yoy(cpi) == pytest.approx(0.03)
-    assert inflation_yoy(pd.Series([100.0, 101.0])) is None
+    assert inflation_yoy(cpi.iloc[:2]) is None
+    assert inflation_yoy(None) is None
+
+
+def test_inflation_yoy_is_not_stretched_by_a_missing_month():
+    months = pd.date_range("2024-09-01", periods=25, freq="MS")
+    cpi = pd.Series([float(100 + i) for i in range(25)], index=months)
+    cpi = cpi.drop(pd.Timestamp("2025-10-01"))
+
+    assert inflation_yoy(cpi) == pytest.approx(124 / 112 - 1)
+
+
+def test_inflation_yoy_steps_back_when_the_year_ago_month_is_missing():
+    months = pd.date_range("2024-09-01", periods=26, freq="MS")
+    cpi = pd.Series([float(100 + i) for i in range(26)], index=months)
+    cpi = cpi.drop(pd.Timestamp("2025-10-01"))
+
+    assert inflation_yoy(cpi) == pytest.approx(124 / 112 - 1)
+
+
+def test_bls_series_skips_annual_averages_and_missing_months():
+    rows = [
+        {"year": "2026", "period": "M01", "value": "325.2"},
+        {"year": "2025", "period": "M13", "value": "321.9"},
+        {"year": "2025", "period": "M12", "value": "324.0"},
+        {"year": "2025", "period": "M10", "value": "-"},
+    ]
+
+    series = macro._bls_series(rows)
+
+    assert series.to_dict() == {
+        pd.Timestamp("2025-12-01"): 324.0,
+        pd.Timestamp("2026-01-01"): 325.2,
+    }
+
+
+def test_chart_ten_year_converts_percentage_points(monkeypatch):
+    monkeypatch.setattr(
+        fallback_source, "get_history", lambda symbol, period: pd.DataFrame({"Close": [4.93]})
+    )
+    assert macro._chart_ten_year() == pytest.approx(0.0493)
+
+
+def test_fetch_macro_falls_back_to_fred(monkeypatch):
+    def broken_chart(symbol, period):
+        raise DataSourceError("down")
+
+    months = pd.date_range("2025-01-01", periods=13, freq="MS")
+    series = {
+        "DGS10": pd.Series([4.0]),
+        "CPIAUCSL": pd.Series([100.0] * 12 + [102.0], index=months),
+    }
+    monkeypatch.setattr(fallback_source, "get_history", broken_chart)
+    monkeypatch.setattr(macro, "_read_bls_cpi", lambda: None)
+    monkeypatch.setattr(macro, "_read_fred", series.get)
+
+    result = macro.fetch_macro()
+
+    assert result["ten_year_yield"] == pytest.approx(0.04)
+    assert result["inflation_yoy"] == pytest.approx(0.02)
+
+
+def test_fetch_macro_is_none_when_every_source_fails(monkeypatch):
+    def broken_chart(symbol, period):
+        raise DataSourceError("down")
+
+    monkeypatch.setattr(fallback_source, "get_history", broken_chart)
+    monkeypatch.setattr(macro, "_read_bls_cpi", lambda: None)
+    monkeypatch.setattr(macro, "_read_fred", lambda series_id: None)
+
+    assert macro.fetch_macro() == {"ten_year_yield": None, "inflation_yoy": None}

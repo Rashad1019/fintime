@@ -1,4 +1,9 @@
-from formatting import fmt_money, fmt_pct, fmt_ratio
+from formatting import escape_dollars, fmt_money, fmt_pct, fmt_ratio
+
+
+def test_escape_dollars_escapes_every_dollar_sign():
+    assert escape_dollars("$371.57 vs $284.34") == r"\$371.57 vs \$284.34"
+    assert escape_dollars("no money here") == "no money here"
 
 
 def test_fmt_ratio_formats_with_two_decimals_and_thousands():
