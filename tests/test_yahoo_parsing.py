@@ -20,6 +20,32 @@ FULL_INFO = {
 }
 
 
+def test_fundamentals_mark_funds_by_quote_type():
+    assert yahoo._fundamentals_from_info(dict(FULL_INFO, quoteType="ETF"), 150.0)["is_fund"]
+    assert yahoo._fundamentals_from_info(dict(FULL_INFO, quoteType="MUTUALFUND"), 150.0)["is_fund"]
+    assert not yahoo._fundamentals_from_info(dict(FULL_INFO, quoteType="EQUITY"), 150.0)["is_fund"]
+    assert not yahoo._fundamentals_from_info(FULL_INFO, 150.0)["is_fund"]
+
+
+def test_fetch_history_passes_the_adjustment_choice_to_yfinance(monkeypatch):
+    calls = []
+
+    class FakeTicker:
+        def __init__(self, ticker):
+            pass
+
+        def history(self, period, interval, auto_adjust):
+            calls.append(auto_adjust)
+            return pd.DataFrame({"Close": [100.0]})
+
+    monkeypatch.setattr(yahoo.yf, "Ticker", FakeTicker)
+
+    yahoo.fetch_history("SCHD", "5y")
+    yahoo.fetch_history("SCHD", "5y", adjusted=False)
+
+    assert calls == [True, False]
+
+
 def test_fundamentals_keep_decimal_earnings_growth():
     info = dict(FULL_INFO, earningsGrowth=0.15)
     fundamentals = yahoo._fundamentals_from_info(info, 150.0)
@@ -37,9 +63,102 @@ def test_fundamentals_normalizes_dividend_yield_to_fraction():
     assert fundamentals["dividend_yield"] == pytest.approx(0.0325)
 
 
-def test_fundamentals_derives_shareholder_equity():
-    fundamentals = yahoo._fundamentals_from_info(FULL_INFO, 150.0)
-    assert fundamentals["shareholder_equity"] == 4.0 * 16_000_000_000
+def test_fundamentals_derive_book_value_from_reported_equity():
+    fundamentals = yahoo._fundamentals_from_info(FULL_INFO, 150.0, equity=64e9)
+    assert fundamentals["shareholder_equity"] == 64e9
+    assert fundamentals["book_value_per_share"] == pytest.approx(4.0)
+
+
+def test_fundamentals_count_every_share_class():
+    info = dict(FULL_INFO, sharesOutstanding=5e9, impliedSharesOutstanding=12e9)
+    fundamentals = yahoo._fundamentals_from_info(info, 150.0, equity=60e9)
+    assert fundamentals["shares_outstanding"] == 12e9
+    assert fundamentals["book_value_per_share"] == pytest.approx(5.0)
+
+
+def test_fundamentals_convert_statements_to_the_trading_currency():
+    fundamentals = yahoo._fundamentals_from_info(FULL_INFO, 150.0, equity=1000.0, fx_rate=0.5)
+    assert fundamentals["free_cash_flow"] == 50_000_000_000
+    assert fundamentals["revenue"] == 195_000_000_000
+    assert fundamentals["net_income"] == 47_500_000_000
+    assert fundamentals["total_debt"] == 55_000_000_000
+    assert fundamentals["shareholder_equity"] == 500.0
+    assert fundamentals["eps"] == 6.0
+
+
+def test_fundamentals_blank_statements_without_an_fx_rate():
+    fundamentals = yahoo._fundamentals_from_info(FULL_INFO, 150.0, equity=1000.0, fx_rate=None)
+    assert fundamentals["free_cash_flow"] is None
+    assert fundamentals["net_income"] is None
+    assert fundamentals["shareholder_equity"] is None
+    assert fundamentals["book_value_per_share"] is None
+    assert fundamentals["price"] == 150.0
+    assert fundamentals["eps"] == 6.0
+
+
+class _FxTicker:
+    rate = 0.03
+
+    def __init__(self, symbol):
+        self.symbol = symbol
+
+    @property
+    def fast_info(self):
+        return {"lastPrice": self.rate}
+
+
+def test_fx_rate_is_one_when_currencies_match_or_are_missing():
+    assert yahoo._fx_rate("USD", "USD") == 1.0
+    assert yahoo._fx_rate(None, "USD") == 1.0
+
+
+def test_fx_rate_uses_the_pair_quote(monkeypatch):
+    monkeypatch.setattr(yahoo.yf, "Ticker", _FxTicker)
+    assert yahoo._fx_rate("TWD", "USD") == 0.03
+
+
+def test_fx_rate_scales_subunit_quotes(monkeypatch):
+    monkeypatch.setattr(yahoo.yf, "Ticker", _FxTicker)
+    assert yahoo._fx_rate("GBP", "GBp") == 100.0
+    assert yahoo._fx_rate("USD", "GBp") == pytest.approx(3.0)
+
+
+def test_fx_rate_is_none_when_the_pair_fails(monkeypatch):
+    class Broken:
+        def __init__(self, symbol):
+            raise RuntimeError("down")
+
+    monkeypatch.setattr(yahoo.yf, "Ticker", Broken)
+    assert yahoo._fx_rate("TWD", "USD") is None
+
+
+class _SheetTicker:
+    def __init__(self, quarterly, annual):
+        self.quarterly_balance_sheet = quarterly
+        self.balance_sheet = annual
+
+
+def _sheet(row: str, values: list) -> pd.DataFrame:
+    return pd.DataFrame([values], index=[row])
+
+
+def test_reported_equity_prefers_the_latest_quarter():
+    stock = _SheetTicker(_sheet("Common Stock Equity", [5.0, 4.0]), _sheet("Common Stock Equity", [3.0]))
+    assert yahoo._reported_equity(stock, "X") == 5.0
+
+
+def test_reported_equity_falls_back_to_annual_and_skips_blanks():
+    stock = _SheetTicker(pd.DataFrame(), _sheet("Stockholders Equity", [float("nan"), 3.0]))
+    assert yahoo._reported_equity(stock, "X") == 3.0
+
+
+def test_reported_equity_is_none_when_the_sheet_fails():
+    class Broken:
+        @property
+        def quarterly_balance_sheet(self):
+            raise RuntimeError("down")
+
+    assert yahoo._reported_equity(Broken(), "X") is None
 
 
 def test_fundamentals_missing_fields_are_none():

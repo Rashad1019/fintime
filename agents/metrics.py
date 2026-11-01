@@ -3,7 +3,7 @@
 import pandas as pd
 
 from analytics.dcf import dcf_value
-from analytics.dividends import dividend_yield_range
+from analytics.dividends import dividend_yield_range, trailing_yield
 from analytics.ratios import compute_ratios, peg_ratio
 from analytics import technicals
 from analytics.risk import annualized_volatility, historical_var, sharpe_ratio
@@ -15,6 +15,10 @@ from config import (
     DCF_TERMINAL_GROWTH,
     DCF_YEARS,
 )
+
+# How far a stock's reported yield can sit from its payouts before the reported
+# figure is treated as bad. Wide enough that a special dividend doesn't trip it.
+_YIELD_MISMATCH = 5
 
 
 def assemble_metrics(
@@ -79,10 +83,32 @@ def assemble_metrics(
         None if yield_range is None else yield_range["dividend_yield_high"]
     )
 
+    paid_yield = trailing_yield(fundamentals.get("price"), dividends)
+    metrics["dividend_yield_paid"] = paid_yield
+    metrics["dividend_yield"] = _best_yield(
+        metrics["dividend_yield"], paid_yield, fundamentals.get("is_fund", False)
+    )
+
     macro = macro or {}
     metrics["ten_year_yield"] = macro.get("ten_year_yield")
     metrics["inflation_yoy"] = macro.get("inflation_yoy")
     return metrics
+
+
+def _best_yield(reported: float | None, paid: float | None, is_fund: bool) -> float | None:
+    """Pick the yield to show, checking the reported one against real payouts.
+
+    Funds always use payouts, since Yahoo's field is unreliable for them
+    (QQQI reads 0.11% on a mid-teens payout). Stocks keep the reported
+    forward yield unless it is missing or far from what was actually paid.
+    """
+    if paid is None:
+        return reported
+    if is_fund or not reported:
+        return paid
+    if max(reported, paid) / min(reported, paid) > _YIELD_MISMATCH:
+        return paid
+    return reported
 
 
 def _per_share_dcf(fcf, shares, growth: float, discount: float) -> float | None:

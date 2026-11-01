@@ -39,7 +39,10 @@ formatting.py              single source of display formatting (UI + prompts)
 ```
 
 One `yf.Ticker(t).info` call produces both quote and fundamentals, so they can
-never disagree and the API is hit half as often.
+never disagree and the API is hit half as often. Stocks add one balance-sheet
+call for equity, and one FX call when the company reports in a different
+currency than its shares trade in. Fundamentals are always in the trading
+currency, so per-share figures can be compared with the price.
 
 ## Design decisions (and why)
 

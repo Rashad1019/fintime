@@ -31,9 +31,10 @@ def get_history(
     period: str = "1y",
     interval: str = "1d",
     provider: str = yahoo.PROVIDER_AUTO,
+    adjusted: bool = True,
 ) -> pd.DataFrame:
     """Cached OHLC prices."""
-    return yahoo.fetch_history(ticker, period, interval, provider)
+    return yahoo.fetch_history(ticker, period, interval, provider, adjusted)
 
 
 @st.cache_data(ttl=HISTORY_TTL_SECONDS, show_spinner=False)

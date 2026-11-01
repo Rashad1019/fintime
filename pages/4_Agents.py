@@ -23,7 +23,7 @@ from storage import db
 
 def _history_or_empty(symbol: str, period: str, data_provider: str) -> pd.Series:
     try:
-        frame = cache.get_history(symbol, period, provider=data_provider)
+        frame = cache.get_history(symbol, period, provider=data_provider, adjusted=False)
     except DataSourceError:
         return pd.Series(dtype=float)
     if frame is None or frame.empty or "Close" not in frame.columns:
