@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fincent Work Log</title>
+<style>
+:root{--bg:#050505;--panel:#0B0B0D;--line:#2A2A30;--text:#F7F7F4;--muted:#B4B4BA;--accent:#8E96FF}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 'Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:860px;margin:0 auto;padding:48px 16px 80px}
+h1{font-size:clamp(2rem,6vw,3rem);line-height:1.1;letter-spacing:-.03em;margin:0 0 1rem}
+h2{font-size:1.45rem;letter-spacing:-.02em;margin:2.6rem 0 .8rem;padding-top:1.4rem;border-top:1px solid var(--line)}
+h3{font-size:1.1rem;margin:1.8rem 0 .5rem}
+p,li{color:var(--muted)} strong{color:var(--text)} a{color:var(--accent);overflow-wrap:anywhere}
+ul{padding-left:1.25rem} li{margin:.3rem 0}
+code{font:.88em 'SF Mono',Menlo,Consolas,monospace;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:.08em .3em;color:var(--text);overflow-wrap:anywhere}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;overflow-x:auto}
+pre code{background:none;border:0;padding:0;overflow-wrap:normal}
+.table{overflow-x:auto;margin:1rem 0}
+table{border-collapse:collapse;width:100%;min-width:480px}
+th,td{text-align:left;vertical-align:top;padding:.6rem .7rem;border-bottom:1px solid var(--line);color:var(--muted)}
+th{color:var(--text);font-size:.85rem}
+input[type=checkbox]{accent-color:var(--accent);margin-right:.4rem}
+</style>
+</head>
+<body><main>
+<h1>Fincent Work Log</h1>
+<p><strong>Dates covered:</strong> October 31 and November 1, 2026<br />
+<strong>Live site:</strong> https://fintime.streamlit.app<br />
+<strong>Code:</strong> https://github.com/Rashad1019/fintime<br />
+<strong>Latest live commit:</strong> <code>7f456ea</code></p>
+<h2>Where it stands</h2>
+<p>Fincent is a public learning page for ordinary people who just heard about a stock or fund. A visitor enters a ticker and sees what it is, how it has done, whether it looks like a good time to buy, and what famous investor styles would do.</p>
+<ul>
+<li>All 174 automated tests pass.</li>
+<li>The live page loads and IVV shows its plain buy answer.</li>
+<li>I have not confirmed the new short persona answers on the live site with a real AI reply.</li>
+</ul>
+<h2>What changed</h2>
+<h3>Correct numbers (October 31)</h3>
+<ul>
+<li><strong>Dividend yields:</strong> fixed for any ticker. Yahoo's reported figure was wrong for some funds, so yields now come from actual payouts.</li>
+<li><strong>Currency and share counts:</strong> fixed for foreign stocks such as TSM, including the backup data sources.</li>
+<li><strong>Live backups:</strong> corrected FMP and the Yahoo chart source, because the live site runs on those when the Yahoo library fails.</li>
+<li><strong>10-year yield and inflation:</strong> these now use sources that work on the live site.</li>
+<li><strong>Garbled text:</strong> dollar signs no longer break the page's formatting.</li>
+</ul>
+<h3>A page for ordinary people (November 1)</h3>
+<ul>
+<li>The home page now follows one order: what it is, how it has done, is now a good time, key numbers, then the investors.</li>
+<li>An AI-written plain explanation appears under "What it is".</li>
+<li>The past month is the default timeframe, and other timeframes are one click away.</li>
+<li>The Watchlist and Quote pages were removed.</li>
+</ul>
+<h3>Original look restored</h3>
+<ul>
+<li>The first rebuild changed too much, so these came back: the "Read the market. Know the business." header, the blue design, the full-width layout, the sidebar menu, and the Agents page.</li>
+<li>The yellow theme was removed.</li>
+<li>The header text changed from "twenty" to "sixteen" investor frameworks, to match the real count.</li>
+</ul>
+<h3>Easier to use</h3>
+<ul>
+<li>A visible menu with Dashboard, Analytics, and Agents appears whenever the sidebar is closed, including on phones.</li>
+<li>No ticker is filled in on any page. A ticker typed on one page carries to the others.</li>
+<li>Investors are chosen from one short dropdown, grouped by category, instead of a long list.</li>
+<li>Every ticker starts with no investors picked and no answers. Old saved answers no longer load.</li>
+<li>Loading is now visible: a pop-up, a running count, and a line for each investor.</li>
+</ul>
+<h3>How the investors answer</h3>
+<p>Each investor tries these in order:</p>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Try</th>
+<th>Model</th>
+<th>Time allowed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Gemma (free)</td>
+<td>30 seconds</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Gemma (paid)</td>
+<td>1 minute 30 seconds</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Claude Haiku 5.5 (paid)</td>
+<td>1 minute 30 seconds</td>
+</tr>
+<tr>
+<td>4</td>
+<td>GPT-6 Luna (paid)</td>
+<td>2 minutes</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>A financial joke appears when an investor reaches the last try.</li>
+<li>If nobody can answer, the page says the network is busy.</li>
+<li>The longest possible wait is about 5 and a half minutes.</li>
+<li>The "What it is" explanation uses a shorter limit, so it can't hold up the page for long.</li>
+</ul>
+<h3>Written for everyday readers</h3>
+<ul>
+<li><strong>Should I buy today?</strong> now appears at the top of the "Is now a good time?" section, with prices to watch from the chart.</li>
+<li>Investor answers are limited to about 100 words, in four parts: My take, My move, Why, and What could go wrong.</li>
+<li>Verdicts are now Buy now, Wait, or Skip.</li>
+<li>The persona note now reads: "Inspired by how famous investors think. These aren't the real people, and this isn't financial advice."</li>
+</ul>
+<h3>Cleanup</h3>
+<ul>
+<li>Removed local-only files, which saved about 383 MB.</li>
+<li>Removed <code>CHANGELOG.md</code>. It stopped at July 6 and described pages that no longer exist.</li>
+</ul>
+<h2>Problems and how they were fixed</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Problem</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Live numbers stayed wrong after a fix</td>
+<td>The live site uses backup data sources</td>
+<td>Fixed the backups too</td>
+</tr>
+<tr>
+<td>Personas kept running</td>
+<td>Not confirmed. Either a stuck model, or slow answers one after another</td>
+<td>Time limits and running investors at the same time</td>
+</tr>
+<tr>
+<td>"Investors could not be reached"</td>
+<td>Probably my own 40-second limit. The page hid the exact error</td>
+<td>Replaced with the try order above</td>
+</tr>
+<tr>
+<td>Answers already showing on a ticker</td>
+<td>Saved runs were shared across the whole site, and picks carried over</td>
+<td>Answers now stay with one visitor and one ticker</td>
+</tr>
+<tr>
+<td><code>AttributeError</code> on every ticker</td>
+<td>Streamlit kept an old code file in memory after a push</td>
+<td>Forced a clean restart</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Still open</h2>
+<ul>
+<li><strong>Real persona test:</strong> confirm the short format and that investors stick to the listed prices.</li>
+<li><strong>Yearly fee for funds:</strong> it doesn't show on the live site, because it comes from Yahoo.</li>
+<li><strong>Better price:</strong> some tickers show only the trend price. IVV did on November 1, because no level met the rules.</li>
+<li><strong>Earnings growth over 200%</strong> is divided by 100 by mistake in <code>data/normalize.py</code>.</li>
+<li><strong>The DCF value</strong> ignores net debt.</li>
+<li><strong>Netflix</strong> is classified as an ETF, because its name contains "etf".</li>
+<li><strong>SPLG</strong> is a dead ticker in the replacement list.</li>
+<li><strong>Old documents:</strong> <code>PLAN.md</code> still describes a personal tool. The "Known limits" section in <code>ARCHITECTURE.md</code> still says single-user.</li>
+<li><strong>Saved runs:</strong> they are still written to a database that nothing reads.</li>
+<li><strong>Public cost:</strong> anyone can pick all 16 investors, and that spends your OpenRouter key.</li>
+</ul>
+<h2>All commits</h2>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Commit</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>7447a41</code></td>
+<td>Correct yields, share counts, and foreign-currency fundamentals</td>
+</tr>
+<tr>
+<td><code>b8a94d2</code></td>
+<td>Make the backup data sources match Yahoo's corrections</td>
+</tr>
+<tr>
+<td><code>97ad994</code></td>
+<td>Restore macro numbers on the hosted app and fix dollar rendering</td>
+</tr>
+<tr>
+<td><code>eb85658</code></td>
+<td>Turn Fincent into a one-page ticker lookup for ordinary investors</td>
+</tr>
+<tr>
+<td><code>4ae4d27</code></td>
+<td>Restore the original look and stop persona runs from hanging</td>
+</tr>
+<tr>
+<td><code>3858fa4</code></td>
+<td>Add a visible page menu, a compact persona picker, and live loading</td>
+</tr>
+<tr>
+<td><code>ca943c2</code></td>
+<td>Give personas one free try, then three paid models with longer limits</td>
+</tr>
+<tr>
+<td><code>b4c8ff6</code></td>
+<td>Start every ticker with no persona picks or saved answers</td>
+</tr>
+<tr>
+<td><code>0fadf89</code></td>
+<td>Answer "should I buy today?" in plain words for everyday readers</td>
+</tr>
+<tr>
+<td><code>7f456ea</code></td>
+<td>Bump the version to make Streamlit Cloud reload every module</td>
+</tr>
+</tbody>
+</table></div>
+</main></body>
+</html>
